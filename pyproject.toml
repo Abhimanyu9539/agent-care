@@ -1,0 +1,31 @@
+[project]
+name = "agentcare"
+version = "0.1.0"
+description = "AgentCare: LangGraph multi-agent patient-care assistant"
+requires-python = ">=3.11"
+dependencies = [
+    "bcrypt>=5.0.0",
+    "fastapi>=0.141.1",
+    "itsdangerous>=2.2.0",
+    "jinja2>=3.1.6",
+    "langchain>=1.0",
+    "langchain-anthropic>=1.7.2",
+    "langgraph>=1.0",
+    "langgraph-checkpoint-sqlite>=3.1.1",
+    "pydantic>=2.13.5",
+    "pydantic-settings>=2.15.0",
+    "pypdf>=6.18.1",
+    "python-multipart>=0.0.32",
+    "sqlalchemy>=2.0.53",
+    "uvicorn[standard]>=0.53.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+]

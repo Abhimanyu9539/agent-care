@@ -1,0 +1,16 @@
+# Secrets
+.env
+
+# Virtual environment
+.venv/
+
+# Runtime data
+uploads/
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Python caches
+__pycache__/
+.pytest_cache/
