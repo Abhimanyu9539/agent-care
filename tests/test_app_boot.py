@@ -4,8 +4,8 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from agentcare.config import Settings
-from agentcare.main import create_app
+from app.config import Settings
+from app.main import create_app
 
 
 def test_health_returns_ok() -> None:
