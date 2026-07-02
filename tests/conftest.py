@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("APP_ENV", "test")
 
-from app.db import models  # noqa: E402,F401  (registers every table on Base.metadata)
 from app.db.session import Base, make_engine, make_session_factory  # noqa: E402
 
 

@@ -1,32 +1,45 @@
 # AgentCare
 
-LangGraph multi-agent patient-care coordination assistant. Full documentation is in progress; see `IMPLEMENTATION_PLAN.md` for the build plan.
+LangGraph multi-agent patient-care coordination assistant. Full documentation is in progress.
 
-## Database setup (migration step)
+## Database setup
 
-1. Copy `.env.example` to `.env` and set `SECRET_KEY`.
-2. Create the application tables and load synthetic demo data:
+The schema lives in `app/db/tables/` as plain SQL, one file per table. The number prefix is the order they run in (enums first).
+
+1. Start Postgres:
 
    ```
-   python scripts/init_db.py
+   docker compose up -d db
    ```
 
-   This runs `Base.metadata.create_all` against `DATABASE_URL`, then seeds. It is safe to run again: seeding is skipped once departments exist.
+2. Create the tables.
 
-3. LangGraph checkpoint tables live in a separate SQLite file (`CHECKPOINT_DB`) and are created by `SqliteSaver.setup()` when the app starts.
+   PowerShell:
 
-### Seeded data
+   ```
+   Get-Content app/db/tables/*.sql | docker exec -i agent-care-db-1 psql -U agentcare -d agentcare -v ON_ERROR_STOP=1 --single-transaction
+   ```
 
-All seeded data is synthetic.
+   Git Bash / Linux / macOS:
 
-- Departments: Cardiology, Orthopaedics, Dermatology, General Medicine, with two doctors each.
-- Slots: every weekday for the next 21 days, 09:00 to 17:00 **UTC** in 30-minute blocks. A few slots are pre-booked or blocked.
-- Required documents: Cardiology follow-up needs `ecg` and `blood_report`. Orthopaedics new visits need `imaging`. General Medicine new visits need `id_proof`.
-- Logins, all with password `password123`:
+   ```
+   cat app/db/tables/*.sql | docker exec -i agent-care-db-1 psql -U agentcare -d agentcare -v ON_ERROR_STOP=1 --single-transaction
+   ```
 
-  | Email | Role | Notes |
-  |---|---|---|
-  | `patient1@example.com` | patient | adult; has one confirmed Cardiology appointment |
-  | `patient2@example.com` | patient | under 18 (sensitive-case escalation) |
-  | `patient3@example.com` | patient | senior |
-  | `staff@example.com` | staff | |
+   It runs in one transaction, so it either creates everything or nothing. Run it once on an empty database.
+
+3. Optional: load the sample data from `app/db/seed/` (same layout, one file per table). Run this after step 2, once:
+
+   ```
+   Get-Content app/db/seed/*.sql | docker exec -i agent-care-db-1 psql -U agentcare -d agentcare -v ON_ERROR_STOP=1 --single-transaction
+   ```
+
+   The sample data matches the people and IDs in the UI design mockups. Dates are counted from the day you load it. Every login uses the password `password123`:
+
+   | Email | Role |
+   |---|---|
+   | `admin@example.com` | admin |
+   | `rhea.menon@example.com` | staff |
+   | `ananya.rao@example.com` and seven other patients (see `app/db/seed/01_users.sql`) | patient |
+
+To start over, `docker compose down -v` deletes the database volume.
