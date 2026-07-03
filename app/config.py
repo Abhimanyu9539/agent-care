@@ -24,8 +24,7 @@ class Settings(BaseSettings):
     app_env: Literal["development", "test", "production"] = "development"
     secret_key: SecretStr
 
-    database_url: str = "sqlite:///./agentcare.db"
-    checkpoint_db: Path = Path("./checkpoints.db")
+    database_url: str = "postgresql+psycopg://agentcare:agentcare@localhost:5432/agentcare"
     upload_dir: Path = Path("./uploads")
 
     anthropic_api_key: SecretStr | None = None

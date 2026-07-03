@@ -6,10 +6,6 @@
 
 # Runtime data
 uploads/
-*.db
-*.db-shm
-*.db-wal
-*.db-journal
 
 # Python caches
 __pycache__/

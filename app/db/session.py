@@ -1,10 +1,9 @@
 """Declarative base, engine construction, and the request-scoped session dependency."""
 
 from collections.abc import Iterator
-from typing import Any
 
 from fastapi import Request
-from sqlalchemy import Engine, MetaData, create_engine, event
+from sqlalchemy import Engine, MetaData, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 # Deterministic constraint names, so they are unique per schema on Postgres.
@@ -21,21 +20,13 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
-def _enable_sqlite_foreign_keys(dbapi_connection: Any, connection_record: Any) -> None:
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
-
-
 def make_engine(url: str) -> Engine:
-    """Create an engine; SQLite gets cross-thread access and enforced foreign keys."""
-    if url.startswith("sqlite"):
-        # FastAPI's threadpool and BackgroundTasks share one engine.
-        engine = create_engine(url, connect_args={"check_same_thread": False})
-        # SQLite ignores FOREIGN KEY constraints unless enabled per connection.
-        event.listen(engine, "connect", _enable_sqlite_foreign_keys)
-        return engine
-    return create_engine(url, pool_pre_ping=True)
+    """Create a Postgres engine; pre-ping replaces connections the server has dropped.
+
+    The connect timeout makes requests fail fast when the database is unreachable,
+    instead of waiting forever on a connection that never answers.
+    """
+    return create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 5})
 
 
 def make_session_factory(engine: Engine) -> sessionmaker[Session]:

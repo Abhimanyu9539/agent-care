@@ -43,3 +43,7 @@ The schema lives in `app/db/tables/` as plain SQL, one file per table. The numbe
    | `ananya.rao@example.com` and seven other patients (see `app/db/seed/01_users.sql`) | patient |
 
 To start over, `docker compose down -v` deletes the database volume.
+
+## Tests
+
+The tests use the real Postgres database, so start it first (`docker compose up -d db`), then run `pytest`.

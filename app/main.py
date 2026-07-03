@@ -3,7 +3,10 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import Settings, get_settings
@@ -18,7 +21,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="AgentCare")
     app.state.settings = settings
-    # Tables are created by scripts/init_db.py, not at startup.
+    # Tables are created from app/db/tables/*.sql (see README), not at startup.
     app.state.engine = make_engine(settings.database_url)
     app.state.session_factory = make_session_factory(app.state.engine)
 
@@ -31,8 +34,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
     @app.get("/health")
-    def health() -> dict[str, str]:
-        return {"status": "ok"}
+    def health() -> JSONResponse:
+        """Report whether the app is up and the database answers a query."""
+        try:
+            with app.state.engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+        except SQLAlchemyError:
+            return JSONResponse({"status": "error", "database": "down"}, status_code=503)
+        return JSONResponse({"status": "ok", "database": "ok"})
 
     return app
 
