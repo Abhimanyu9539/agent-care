@@ -9,8 +9,10 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.auth.routes import router as auth_router
 from app.config import Settings, get_settings
 from app.db.session import make_engine, make_session_factory
+from app.web.routes import router as web_router
 
 STATIC_DIR = Path(__file__).parent / "web" / "static"
 
@@ -32,6 +34,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         https_only=settings.app_env == "production",
     )
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.include_router(auth_router)
+    app.include_router(web_router)
 
     @app.get("/health")
     def health() -> JSONResponse:
