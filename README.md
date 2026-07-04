@@ -44,6 +44,17 @@ The schema lives in `app/db/tables/` as plain SQL, one file per table. The numbe
 
 To start over, `docker compose down -v` deletes the database volume.
 
+## Run the app
+
+1. Copy `.env.example` to `.env` and set `SECRET_KEY` (the file shows how to generate one).
+2. With the database running and the tables created, start the app:
+
+   ```
+   uvicorn app.main:app --reload
+   ```
+
+3. Open http://127.0.0.1:8000/auth/login and log in with a sample account, or register a new patient.
+
 ## Tests
 
 The tests use the real Postgres database, so start it first (`docker compose up -d db`), then run `pytest`.
