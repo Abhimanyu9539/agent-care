@@ -2,19 +2,20 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import RedirectResponse, Response
+from fastapi import APIRouter, Depends
+from fastapi.responses import RedirectResponse
 from sqlalchemy import RowMapping
 
 from app.auth.deps import current_user
-from app.web import templates
 
 router = APIRouter()
 
 
 @router.get("/")
-def home(request: Request, user: Annotated[RowMapping | None, Depends(current_user)]) -> Response:
-    """Placeholder home showing who is signed in. Real patient and staff pages come later."""
+def home(user: Annotated[RowMapping | None, Depends(current_user)]) -> RedirectResponse:
+    """Send each visitor to the start page for their role."""
     if user is None:
         return RedirectResponse("/auth/login", status_code=303)
-    return templates.TemplateResponse(request, "home.html", {"user": user})
+    if user["role"] == "PATIENT":
+        return RedirectResponse("/patient", status_code=303)
+    return RedirectResponse("/staff/slots", status_code=303)

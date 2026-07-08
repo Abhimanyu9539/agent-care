@@ -1,4 +1,6 @@
-"""Sign-in: register, log in and log out, against the real database.
+"""Sign-in and role checks: register, log in, log out and who may open which page.
+
+Runs against the real database.
 
 Needs the database running with the tables created (see README).
 Test accounts use emails like test-<random>@example.com and are deleted after each test,
@@ -149,9 +151,77 @@ def test_inactive_user_cannot_log_in_and_is_signed_out(app: FastAPI, client: Tes
 
 def test_logout_clears_the_session(client: TestClient) -> None:
     _register(client)
-    assert client.get("/", follow_redirects=False).status_code == 200
+    assert client.get("/patient", follow_redirects=False).status_code == 200
 
     response = client.post("/auth/logout", follow_redirects=False)
 
     assert _redirects_to_login(response)
     assert _redirects_to_login(client.get("/", follow_redirects=False))
+
+
+def test_role_pages_redirect_when_signed_out(client: TestClient) -> None:
+    assert _redirects_to_login(client.get("/patient", follow_redirects=False))
+    assert _redirects_to_login(client.get("/staff/slots", follow_redirects=False))
+
+
+def test_patient_cannot_open_staff_pages(client: TestClient) -> None:
+    _register(client)
+
+    assert client.get("/staff/slots").status_code == 403
+    assert client.get("/", follow_redirects=False).headers["location"] == "/patient"
+
+
+@pytest.mark.parametrize("role", ["STAFF", "ADMIN"])
+def test_staff_and_admin_open_staff_pages_but_not_patient_pages(
+    app: FastAPI, client: TestClient, role: str
+) -> None:
+    # The role is read from the database on every request, so changing it here takes effect at once.
+    email = _new_email()
+    _register(client, email=email)
+    with app.state.engine.begin() as connection:
+        connection.execute(
+            text("UPDATE users SET role = :role WHERE email = :email"), {"role": role, "email": email}
+        )
+
+    response = client.get("/staff/slots")
+
+    assert response.status_code == 200
+    assert "Upcoming slots" in response.text
+    assert client.get("/patient").status_code == 403
+    assert client.get("/", follow_redirects=False).headers["location"] == "/staff/slots"
+
+
+def test_staff_slots_page_shows_slots_from_the_database(app: FastAPI, client: TestClient) -> None:
+    email = _new_email()
+    _register(client, email=email)
+    code = f"test-{uuid.uuid4().hex[:12]}"
+    with app.state.engine.begin() as connection:
+        connection.execute(text("UPDATE users SET role = 'STAFF' WHERE email = :email"), {"email": email})
+        department_id = connection.execute(
+            text("INSERT INTO departments (code, name, description) VALUES (:code, :code, 'test') RETURNING id"),
+            {"code": code},
+        ).scalar_one()
+        doctor_id = connection.execute(
+            text("INSERT INTO doctors (department_id, full_name) VALUES (:id, 'Dr. Test Doctor') RETURNING id"),
+            {"id": department_id},
+        ).scalar_one()
+        slot_id = connection.execute(
+            text(
+                "INSERT INTO appointment_slots (doctor_id, start_time, end_time) "
+                "VALUES (:id, now() + interval '1 hour', now() + interval '90 minutes') RETURNING id"
+            ),
+            {"id": doctor_id},
+        ).scalar_one()
+
+    try:
+        page = client.get("/staff/slots").text
+    finally:
+        with app.state.engine.begin() as connection:
+            connection.execute(text("DELETE FROM appointment_slots WHERE id = :id"), {"id": slot_id})
+            connection.execute(text("DELETE FROM doctors WHERE id = :id"), {"id": doctor_id})
+            connection.execute(text("DELETE FROM departments WHERE id = :id"), {"id": department_id})
+
+    assert f"S-{slot_id}" in page
+    assert "Dr. Test Doctor" in page
+    assert code in page
+    assert "AVAILABLE" in page
