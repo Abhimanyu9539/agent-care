@@ -1,8 +1,9 @@
 """Request dependencies for the signed-in user."""
 
+from collections.abc import Callable
 from typing import Annotated
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy import RowMapping
 from sqlalchemy.orm import Session
 
@@ -24,3 +25,19 @@ def current_user(request: Request, db: Annotated[Session, Depends(get_db)]) -> R
         request.session.clear()
         return None
     return user
+
+
+def require_role(*roles: str) -> Callable[..., RowMapping]:
+    """Dependency for pages only some roles may open. Returns the signed-in user.
+
+    Signed out: redirect to the login page. Signed in with another role: 403.
+    """
+
+    def check(user: Annotated[RowMapping | None, Depends(current_user)]) -> RowMapping:
+        if user is None:
+            raise HTTPException(status_code=303, headers={"Location": "/auth/login"})
+        if user["role"] not in roles:
+            raise HTTPException(status_code=403, detail="You do not have access to this page.")
+        return user
+
+    return check
