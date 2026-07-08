@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Slots - AgentCare{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+<h1>Upcoming slots</h1>
+<p>Signed in as {{ user.full_name }} ({{ user.role }})</p>
+{% if slots %}
+<table>
+  <tr><th>Slot</th><th>Starts</th><th>Doctor</th><th>Department</th><th>Status</th></tr>
+  {% for slot in slots %}
+  <tr>
+    <td>S-{{ slot.id }}</td>
+    <td>{{ slot.starts_at.strftime("%a %d %b %Y, %H:%M") }}</td>
+    <td>{{ slot.doctor }}</td>
+    <td>{{ slot.department }}</td>
+    <td>{{ slot.status }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>No upcoming slots.</p>
+{% endif %}
+<form method="post" action="/auth/logout">
+  <button type="submit">Log out</button>
+</form>
+{% endblock %}
