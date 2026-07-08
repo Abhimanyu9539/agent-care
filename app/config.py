@@ -26,6 +26,8 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://agentcare:agentcare@localhost:5432/agentcare"
     upload_dir: Path = Path("./uploads")
+    # Times are stored in UTC and shown in this time zone.
+    hospital_tz: str = "Asia/Kolkata"
 
     anthropic_api_key: SecretStr | None = None
     llm_model: str = "claude-opus-5"
