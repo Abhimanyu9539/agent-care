@@ -29,8 +29,9 @@ class Settings(BaseSettings):
     # Times are stored in UTC and shown in this time zone.
     hospital_tz: str = "Asia/Kolkata"
 
-    anthropic_api_key: SecretStr | None = None
-    llm_model: str = "claude-opus-5"
+    # Every LLM call goes through OpenRouter; llm_model is an OpenRouter model id.
+    open_router_api_key: SecretStr | None = None
+    llm_model: str = "anthropic/claude-haiku-5.5"
     llm_timeout_seconds: float = Field(default=120, gt=0)
     llm_max_retries: int = Field(default=2, ge=0)
 
