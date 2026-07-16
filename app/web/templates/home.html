@@ -1,7 +1,0 @@
-{% extends "base.html" %}
-{% block content %}
-<h1>Signed in as {{ user.full_name }} ({{ user.role }})</h1>
-<form method="post" action="/auth/logout">
-  <button type="submit">Log out</button>
-</form>
-{% endblock %}

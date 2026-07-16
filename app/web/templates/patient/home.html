@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Signed in as {{ user.full_name }} ({{ user.role }})</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<form method="post" action="/patient/requests">
+  <label>What do you need?
+    <textarea name="request_text" rows="5" required
+              placeholder="For example: I need a cardiology follow-up next week.">{{ request_text }}</textarea>
+  </label>
+  <button type="submit">Send request</button>
+</form>
+<form method="post" action="/auth/logout">
+  <button type="submit">Log out</button>
+</form>
+{% endblock %}
