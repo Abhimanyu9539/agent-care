@@ -1,14 +1,10 @@
 """Sign-in and role checks: register, log in, log out and who may open which page.
 
-Runs against the real database.
-
 Needs the database running with the tables created (see README).
-Test accounts use emails like test-<random>@example.com and are deleted after each test,
-so the seed data is never touched.
+The `app` and `client` fixtures and the test-account cleanup are in conftest.py.
 """
 
 import uuid
-from collections.abc import Iterator
 
 import pytest
 from fastapi import FastAPI
@@ -17,26 +13,8 @@ from httpx import Response
 from sqlalchemy import text
 
 from app.auth.security import verify_password
-from app.config import Settings
-from app.main import create_app
 
 LOGIN_FAILED = "Email or password is incorrect."
-
-
-@pytest.fixture
-def app() -> Iterator[FastAPI]:
-    app = create_app(Settings(_env_file=None, secret_key="test-secret"))
-    yield app
-    with app.state.engine.begin() as connection:
-        test_users = "SELECT id FROM users WHERE email LIKE 'test-%@example.com'"
-        connection.execute(text(f"DELETE FROM patient_profiles WHERE user_id IN ({test_users})"))
-        connection.execute(text("DELETE FROM users WHERE email LIKE 'test-%@example.com'"))
-    app.state.engine.dispose()
-
-
-@pytest.fixture
-def client(app: FastAPI) -> TestClient:
-    return TestClient(app)
 
 
 def _new_email() -> str:
