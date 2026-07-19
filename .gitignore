@@ -11,5 +11,9 @@ uploads/
 __pycache__/
 .pytest_cache/
 
+# Frontend packages and build output
+node_modules/
+frontend/dist/
+
 docs/
 CLAUDE.md
