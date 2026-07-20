@@ -28,14 +28,14 @@ def current_user(request: Request, db: Annotated[Session, Depends(get_db)]) -> R
 
 
 def require_role(*roles: str) -> Callable[..., RowMapping]:
-    """Dependency for pages only some roles may open. Returns the signed-in user.
+    """Dependency for routes only some roles may use. Returns the signed-in user.
 
-    Signed out: redirect to the login page. Signed in with another role: 403.
+    Signed out: 401. Signed in with another role: 403.
     """
 
     def check(user: Annotated[RowMapping | None, Depends(current_user)]) -> RowMapping:
         if user is None:
-            raise HTTPException(status_code=303, headers={"Location": "/auth/login"})
+            raise HTTPException(status_code=401, detail="Please log in.")
         if user["role"] not in roles:
             raise HTTPException(status_code=403, detail="You do not have access to this page.")
         return user

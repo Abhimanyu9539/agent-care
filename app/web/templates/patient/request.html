@@ -1,9 +1,0 @@
-{% extends "base.html" %}
-{% block title %}Request WR-{{ run.id }} - AgentCare{% endblock %}
-{% block content %}
-<h1>Request WR-{{ run.id }}</h1>
-<p class="request-text">{{ run.request_text }}</p>
-<p>Status: <strong>{{ run.status }}</strong></p>
-{% if run.status == "RUNNING" %}<p>We're working on your request.</p>{% endif %}
-<p><a href="/patient">Send another request</a></p>
-{% endblock %}

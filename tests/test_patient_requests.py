@@ -17,8 +17,8 @@ def _new_patient(app: FastAPI) -> TestClient:
     """A client signed in as a newly registered test patient."""
     client = TestClient(app)
     client.post(
-        "/auth/register",
-        data={
+        "/api/auth/register",
+        json={
             "full_name": "Test Patient",
             "email": f"test-{uuid.uuid4().hex[:12]}@example.com",
             "password": "password123",
@@ -30,13 +30,7 @@ def _new_patient(app: FastAPI) -> TestClient:
 
 
 def _submit(client: TestClient, request_text: str) -> Response:
-    return client.post("/patient/requests", data={"request_text": request_text}, follow_redirects=False)
-
-
-def test_patient_home_shows_the_request_form(app: FastAPI) -> None:
-    page = _new_patient(app).get("/patient").text
-
-    assert 'name="request_text"' in page
+    return client.post("/api/patient/requests", json={"request_text": request_text})
 
 
 def test_submit_saves_a_running_request_and_an_audit_event(app: FastAPI) -> None:
@@ -44,9 +38,8 @@ def test_submit_saves_a_running_request_and_an_audit_event(app: FastAPI) -> None
 
     response = _submit(client, "  I need a cardiology follow-up next week.  ")
 
-    assert response.status_code == 303
-    url = response.headers["location"]
-    run_id = int(url.removeprefix("/patient/requests/"))
+    assert response.status_code == 201
+    run_id = response.json()["id"]
     with app.state.engine.connect() as connection:
         run = connection.execute(
             text("SELECT status, request_text FROM workflow_runs WHERE id = :id"), {"id": run_id}
@@ -59,10 +52,11 @@ def test_submit_saves_a_running_request_and_an_audit_event(app: FastAPI) -> None
     assert run["request_text"] == "I need a cardiology follow-up next week."
     assert events == [("request.create", "workflow_run", run_id)]
 
-    page = client.get(url).text
-    assert f"WR-{run_id}" in page
-    assert "I need a cardiology follow-up next week." in page
-    assert "RUNNING" in page
+    assert client.get(f"/api/patient/requests/{run_id}").json() == {
+        "id": run_id,
+        "request_text": "I need a cardiology follow-up next week.",
+        "status": "RUNNING",
+    }
 
 
 @pytest.mark.parametrize("request_text", ["", "   ", "x" * 2001])
@@ -70,7 +64,7 @@ def test_empty_or_too_long_request_is_rejected(app: FastAPI, request_text: str) 
     response = _submit(_new_patient(app), request_text)
 
     assert response.status_code == 400
-    assert 'class="error"' in response.text
+    assert response.json()["detail"]
     with app.state.engine.connect() as connection:
         runs = connection.execute(
             text(
@@ -83,9 +77,9 @@ def test_empty_or_too_long_request_is_rejected(app: FastAPI, request_text: str) 
 
 def test_another_patient_gets_404(app: FastAPI) -> None:
     owner = _new_patient(app)
-    url = _submit(owner, "Book a dermatology visit.").headers["location"]
+    url = f"/api/patient/requests/{_submit(owner, 'Book a dermatology visit.').json()['id']}"
 
     assert owner.get(url).status_code == 200
     assert _new_patient(app).get(url).status_code == 404
     # A missing request looks the same as someone else's.
-    assert owner.get("/patient/requests/999999999").status_code == 404
+    assert owner.get("/api/patient/requests/999999999").status_code == 404

@@ -46,14 +46,26 @@ To start over, `docker compose down -v` deletes the database volume.
 
 ## Run the app
 
+The backend is a FastAPI JSON API under `/api/`. The frontend is a React app in `frontend/`, built with Vite. It needs Node 22 or newer.
+
 1. Copy `.env.example` to `.env` and set `SECRET_KEY` (the file shows how to generate one).
-2. With the database running and the tables created, start the app:
+2. With the database running and the tables created, start the backend:
 
    ```
    uvicorn app.main:app --reload
    ```
 
-3. Open http://127.0.0.1:8000/auth/login and log in with a sample account, or register a new patient.
+3. In a second terminal, start the frontend:
+
+   ```
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+4. Open http://localhost:5173 and log in with a sample account, or register a new patient. Vite passes every `/api` request on to the backend on port 8000.
+
+To run it the way production does, build the frontend once with `npm run build` in `frontend/`. The backend then serves the built app itself at http://127.0.0.1:8000, so only uvicorn needs to run.
 
 ## Tests
 
