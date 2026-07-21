@@ -1,7 +1,8 @@
+import { CalendarX } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useOutletContext } from "react-router";
 import { api } from "../api.js";
-import LogoutButton from "../LogoutButton.jsx";
+import StaffLayout from "../StaffLayout.jsx";
+import { Pill } from "../ui.jsx";
 
 const dateTime = new Intl.DateTimeFormat("en-GB", {
   weekday: "short",
@@ -19,9 +20,15 @@ function formatStart(startsAt) {
   return dateTime.format(new Date(startsAt.slice(0, 19))).replace(",", "");
 }
 
+const SLOT_STATUS = {
+  AVAILABLE: ["done", "Available"],
+  HELD: ["approval", "Held"],
+  BOOKED: ["info", "Booked"],
+  BLOCKED: ["neutral", "Blocked"],
+};
+
 // Upcoming appointment slots for every doctor.
 export default function StaffSlots() {
-  const { user } = useOutletContext();
   const [slots, setSlots] = useState(null);
   const [error, setError] = useState("");
 
@@ -30,39 +37,53 @@ export default function StaffSlots() {
   }, []);
 
   return (
-    <main className="wide">
+    <StaffLayout title="Doctors and slots" subtitle="Upcoming appointment slots for every doctor, soonest first.">
       <title>Slots - AgentCare</title>
-      <h1>Upcoming slots</h1>
-      <p>
-        Signed in as {user.full_name} ({user.role})
-      </p>
-      {error && <p className="error">{error}</p>}
-      {slots?.length === 0 && <p>No upcoming slots.</p>}
-      {slots?.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Slot</th>
-              <th>Starts</th>
-              <th>Doctor</th>
-              <th>Department</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {slots.map((slot) => (
-              <tr key={slot.id}>
-                <td>S-{slot.id}</td>
-                <td>{formatStart(slot.starts_at)}</td>
-                <td>{slot.doctor}</td>
-                <td>{slot.department}</td>
-                <td>{slot.status}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
       )}
-      <LogoutButton />
-    </main>
+      {slots?.length === 0 && (
+        <div className="card empty">
+          <CalendarX aria-hidden="true" />
+          No upcoming slots.
+        </div>
+      )}
+      {slots?.length > 0 && (
+        <>
+          <div className="table-card">
+            <table>
+              <thead>
+                <tr>
+                  <th>Slot</th>
+                  <th>Starts</th>
+                  <th>Doctor</th>
+                  <th>Department</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {slots.map((slot) => {
+                  const [tone, label] = SLOT_STATUS[slot.status] ?? ["neutral", slot.status];
+                  return (
+                    <tr key={slot.id}>
+                      <td className="mono">S-{slot.id}</td>
+                      <td className="mono nowrap">{formatStart(slot.starts_at)}</td>
+                      <td>{slot.doctor}</td>
+                      <td>{slot.department}</td>
+                      <td>
+                        <Pill tone={tone}>{label}</Pill>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="muted">Showing the next {slots.length} slots.</p>
+        </>
+      )}
+    </StaffLayout>
   );
 }

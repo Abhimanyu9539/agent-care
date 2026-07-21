@@ -1,3 +1,4 @@
+import { LogOut } from "lucide-react";
 import { useOutletContext } from "react-router";
 import { api } from "./api.js";
 
@@ -10,7 +11,8 @@ export default function LogoutButton() {
   }
 
   return (
-    <button type="button" onClick={logOut}>
+    <button type="button" className="btn-ghost" onClick={logOut}>
+      <LogOut aria-hidden="true" />
       Log out
     </button>
   );

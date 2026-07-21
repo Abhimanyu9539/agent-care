@@ -7,13 +7,19 @@ import Login from "./pages/Login.jsx";
 import PatientHome from "./pages/PatientHome.jsx";
 import PatientRequest from "./pages/PatientRequest.jsx";
 import Register from "./pages/Register.jsx";
+import StaffEscalations from "./pages/StaffEscalations.jsx";
 import StaffSlots from "./pages/StaffSlots.jsx";
+import "@fontsource/ibm-plex-sans/400.css";
+import "@fontsource/ibm-plex-sans/500.css";
+import "@fontsource/ibm-plex-sans/600.css";
+import "@fontsource/ibm-plex-mono/400.css";
+import "@fontsource/ibm-plex-mono/500.css";
 import "./styles.css";
 
 // The start page for each visitor.
 function startPage(user) {
   if (user === null) return "/login";
-  return user.role === "PATIENT" ? "/patient" : "/staff/slots";
+  return user.role === "PATIENT" ? "/patient" : "/staff/escalations";
 }
 
 function App() {
@@ -36,16 +42,17 @@ function App() {
         <Route path="/patient/requests/:id" element={<PatientRequest />} />
       </Route>
       <Route element={<RequireRole user={user} setUser={setUser} roles={["STAFF", "ADMIN"]} />}>
+        <Route path="/staff/escalations" element={<StaffEscalations />} />
         <Route path="/staff/slots" element={<StaffSlots />} />
       </Route>
       <Route
         path="*"
         element={
-          <main>
-            <h1>Page not found</h1>
-            <p>
+          <main className="auth">
+            <div className="card stack">
+              <h1>Page not found</h1>
               <Link to="/">Go to the start page</Link>
-            </p>
+            </div>
           </main>
         }
       />

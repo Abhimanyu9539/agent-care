@@ -15,7 +15,7 @@ export async function api(path, { method = "GET", body } = {}) {
   if (response.status === 401 && !path.startsWith("/api/auth/")) {
     window.location.assign("/login");
   }
-  const error = new Error(typeof data?.detail === "string" ? data.detail : "Something went wrong.");
+  const error = new Error(typeof data?.detail === "string" ? data.detail : "Something went wrong. Please try again.");
   error.status = response.status;
   throw error;
 }

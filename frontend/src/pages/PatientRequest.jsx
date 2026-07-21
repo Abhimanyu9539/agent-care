@@ -1,6 +1,28 @@
+import { Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { api } from "../api.js";
+import PatientLayout from "../PatientLayout.jsx";
+import { RunStatus } from "../ui.jsx";
+
+// What the patient is told for each status. Only the saved status is shown, never guessed progress.
+const NEXT_STEP = {
+  RUNNING: ["Checking your request", "We're working on your request."],
+  WAITING_PATIENT_INPUT: ["Waiting for you", "We need an answer from you to go on."],
+  WAITING_APPROVAL: ["With the hospital team", "A staff member needs to approve the next step."],
+  ESCALATED: ["Handed to the hospital team", "A staff member will contact you."],
+  COMPLETED: ["Done", "Your request is complete."],
+  FAILED: ["Something went wrong", "We couldn't finish this request. Please send it again."],
+  CANCELLED: ["Cancelled", "This request was cancelled."],
+};
+
+// "10:38" for today, "14 Nov 10:38" for an earlier day, in the browser's time zone.
+function savedAt(iso) {
+  const date = new Date(iso);
+  const time = date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  if (date.toDateString() === new Date().toDateString()) return time;
+  return `${date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} ${time}`;
+}
 
 // One request and its status.
 export default function PatientRequest() {
@@ -13,31 +35,57 @@ export default function PatientRequest() {
   }, [id]);
 
   const another = (
-    <p>
+    <p className="center">
       <Link to="/patient">Send another request</Link>
     </p>
   );
 
   if (error) {
     return (
-      <main>
-        <p className="error">{error}</p>
+      <PatientLayout title="Your request">
+        <p className="error" role="alert">
+          {error}
+        </p>
         {another}
-      </main>
+      </PatientLayout>
     );
   }
-  if (run === null) return null;
+  if (run === null) return <PatientLayout title="Your request" />;
+
+  const [stepTitle, stepText] = NEXT_STEP[run.status] ?? [run.status, ""];
+  const finished = run.status === "COMPLETED";
 
   return (
-    <main>
+    <PatientLayout title="Your request" subtitle={`WR-${run.id}`}>
       <title>{`Request WR-${run.id} - AgentCare`}</title>
-      <h1>Request WR-{run.id}</h1>
-      <p className="request-text">{run.request_text}</p>
-      <p>
-        Status: <strong>{run.status}</strong>
-      </p>
-      {run.status === "RUNNING" && <p>We're working on your request.</p>}
+      <section className="card">
+        <div className="request-head">
+          <RunStatus status={run.status} />
+          <span className="mono muted">sent {savedAt(run.created_at)}</span>
+        </div>
+        <p className="quote">“{run.request_text}”</p>
+      </section>
+      <ol className="steps">
+        <li className="done">
+          <span className="marker">
+            <Check aria-hidden="true" />
+          </span>
+          <div>
+            <h2>Request received</h2>
+            <p className="mono">
+              WR-{run.id} · saved {savedAt(run.created_at)}
+            </p>
+          </div>
+        </li>
+        <li className={finished ? "done" : "active"}>
+          <span className="marker">{finished && <Check aria-hidden="true" />}</span>
+          <div>
+            <h2>{stepTitle}</h2>
+            <p>{stepText}</p>
+          </div>
+        </li>
+      </ol>
       {another}
-    </main>
+    </PatientLayout>
   );
 }

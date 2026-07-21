@@ -1,48 +1,64 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api } from "../api.js";
+import { Logo } from "../ui.jsx";
 
 export default function Register({ setUser }) {
   const navigate = useNavigate();
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   async function submit(event) {
     event.preventDefault();
     const body = Object.fromEntries(new FormData(event.currentTarget));
+    setBusy(true);
     try {
       setUser(await api("/api/auth/register", { method: "POST", body }));
       navigate("/");
     } catch (e) {
       setError(e.message);
+      setBusy(false);
     }
   }
 
   return (
-    <main>
+    <main className="auth">
       <title>Register - AgentCare</title>
-      <h1>Register as a patient</h1>
-      {error && <p className="error">{error}</p>}
-      <form onSubmit={submit}>
+      <Logo subtitle="Patient administration and care coordination" />
+      <form className="card form" onSubmit={submit}>
+        <h1>Register as a patient</h1>
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         <label>
-          Full name <input name="full_name" required autoFocus />
+          Full name
+          <input name="full_name" autoComplete="name" required autoFocus />
         </label>
         <label>
-          Email <input type="email" name="email" required />
+          Email
+          <input type="email" name="email" autoComplete="email" required />
         </label>
         <label>
-          Password (at least 8 characters) <input type="password" name="password" minLength={8} required />
+          Password (at least 8 characters)
+          <input type="password" name="password" autoComplete="new-password" minLength={8} required />
         </label>
         <label>
-          Date of birth <input type="date" name="date_of_birth" required />
+          Date of birth
+          <input type="date" name="date_of_birth" autoComplete="bday" required />
         </label>
         <label>
-          Phone <input type="tel" name="phone" required />
+          Phone
+          <input type="tel" name="phone" autoComplete="tel" required />
         </label>
-        <button type="submit">Register</button>
+        <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
+          {busy ? "Registering…" : "Register"}
+        </button>
+        <p className="center muted">
+          Already registered? <Link to="/login">Log in</Link>
+        </p>
       </form>
-      <p>
-        Already registered? <Link to="/login">Log in</Link>
-      </p>
     </main>
   );
 }
