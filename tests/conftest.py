@@ -32,6 +32,12 @@ def app() -> Iterator[FastAPI]:
     # Children first, so no foreign key blocks a delete.
     with app.state.engine.begin() as connection:
         connection.execute(text(f"DELETE FROM audit_events WHERE actor_user_id IN ({TEST_USERS})"))
+        connection.execute(
+            text(
+                "DELETE FROM escalations WHERE patient_id IN "
+                f"(SELECT id FROM patient_profiles WHERE user_id IN ({TEST_USERS}))"
+            )
+        )
         connection.execute(text(f"DELETE FROM workflow_runs WHERE created_by IN ({TEST_USERS})"))
         connection.execute(text(f"DELETE FROM patient_profiles WHERE user_id IN ({TEST_USERS})"))
         connection.execute(text(f"DELETE FROM users WHERE id IN ({TEST_USERS})"))
