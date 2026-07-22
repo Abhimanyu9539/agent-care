@@ -52,11 +52,11 @@ def test_submit_saves_a_running_request_and_an_audit_event(app: FastAPI) -> None
     assert run["request_text"] == "I need a cardiology follow-up next week."
     assert events == [("request.create", "workflow_run", run_id)]
 
-    assert client.get(f"/api/patient/requests/{run_id}").json() == {
-        "id": run_id,
-        "request_text": "I need a cardiology follow-up next week.",
-        "status": "RUNNING",
-    }
+    shown = client.get(f"/api/patient/requests/{run_id}").json()
+    assert shown["id"] == run_id
+    assert shown["request_text"] == "I need a cardiology follow-up next week."
+    assert shown["status"] == "RUNNING"
+    assert shown["created_at"]
 
 
 @pytest.mark.parametrize("request_text", ["", "   ", "x" * 2001])

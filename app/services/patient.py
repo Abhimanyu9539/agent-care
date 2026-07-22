@@ -35,7 +35,7 @@ def get_request(db: Session, run_id: int, user_id: int) -> RowMapping | None:
     """The request, or None when it does not exist or belongs to another patient."""
     return db.execute(
         text(
-            "SELECT r.id, r.request_text, r.status "
+            "SELECT r.id, r.request_text, r.status, r.created_at "
             "FROM workflow_runs r JOIN patient_profiles p ON p.id = r.patient_id "
             "WHERE r.id = :run_id AND p.user_id = :user_id"
         ),
