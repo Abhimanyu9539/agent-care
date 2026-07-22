@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 
 def record(
-    db: Session, *, actor_user_id: int, action: str, entity_type: str, entity_id: int, workflow_run_id: int
+    db: Session, *, actor_user_id: int, action: str, entity_type: str, entity_id: int, workflow_run_id: int | None
 ) -> None:
     """Add an audit event without committing, so it is saved together with the change it describes."""
     db.execute(
