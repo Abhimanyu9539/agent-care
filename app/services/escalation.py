@@ -24,6 +24,43 @@ def list_open_escalations(db: Session) -> Sequence[RowMapping]:
     ).mappings().all()
 
 
+def open_escalation(
+    db: Session,
+    run: RowMapping,
+    *,
+    escalation_type: str,
+    priority: str,
+    reason: str,
+    agent: str,
+) -> int:
+    """Hand a run to staff: add an OPEN case with its audit event. Does not commit. Returns the case id."""
+    escalation_id = db.execute(
+        text(
+            "INSERT INTO escalations (workflow_run_id, patient_id, type, priority, reason) "
+            "VALUES (:run_id, :patient_id, :type, :priority, :reason) "
+            "RETURNING id"
+        ),
+        {
+            "run_id": run["id"],
+            "patient_id": run["patient_id"],
+            "type": escalation_type,
+            "priority": priority,
+            "reason": reason,
+        },
+    ).scalar_one()
+    audit.record(
+        db,
+        actor_user_id=run["created_by"],
+        actor_agent=agent,
+        action="escalation.open",
+        entity_type="escalation",
+        entity_id=escalation_id,
+        workflow_run_id=run["id"],
+        metadata={"type": escalation_type, "priority": priority},
+    )
+    return escalation_id
+
+
 def resolve_escalation(db: Session, escalation_id: int, staff_user_id: int) -> bool:
     """Mark an open case resolved by this staff member, with its audit event.
 
