@@ -19,6 +19,7 @@
   --teal-dark: #0A5747;
   --teal-tint: #E2F0EA;
   --on-teal: #FFFFFF;
+  --on-teal-soft: #DBE9E6;  /* secondary text on teal: 5:1 or better */
   --approval: #FAEBD2;
   --approval-ink: #85520A;
   --urgent: #B42318;
@@ -135,12 +136,34 @@ textarea { min-height: 8rem; resize: vertical; line-height: 1.6; }
 .safety-note svg { width: 1.25rem; height: 1.25rem; margin-top: .125rem; color: var(--teal); }
 .safety-note a { color: var(--urgent); font-weight: 600; text-decoration: underline; }
 
-/* Sign-in pages */
-.auth { display: flex; flex-direction: column; gap: 2rem; max-width: 30rem; margin: 0 auto; padding: 4rem 1.5rem; }
-.auth .logo { font-size: 2rem; }
-.auth .logo-mark { width: 3.5rem; height: 3.5rem; border-radius: 14px; }
-.auth .logo-mark svg { width: 1.75rem; height: 1.75rem; }
-.auth h1 { font-size: 1.75rem; }
+/* Sign-in pages: a teal brand panel beside the form on wide screens */
+.auth-page { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); min-height: 100dvh; }
+.auth-panel { position: relative; display: flex; flex-direction: column; gap: 3rem; overflow: hidden; padding: 2.5rem 3.5rem;
+              background: radial-gradient(120% 90% at 0% 0%, var(--teal) 0%, var(--teal-dark) 100%); color: var(--on-teal); }
+.auth-panel .logo { color: var(--on-teal); }
+.auth-panel .logo small { color: var(--on-teal-soft); }
+.auth-panel .logo-mark { background: var(--on-teal); color: var(--teal); }
+.auth-pitch { position: relative; display: flex; flex-direction: column; gap: 1rem; max-width: 28rem; margin: auto 0; }
+.auth-headline { font-size: var(--text-2xl); font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; }
+.auth-pitch > p:not(.auth-headline) { color: var(--on-teal-soft); font-size: var(--text-lg); line-height: 1.55; }
+.auth-features { display: flex; flex-direction: column; gap: .875rem; margin: 1rem 0 0; padding: 0; list-style: none; }
+.auth-features li { display: flex; align-items: center; gap: .875rem; font-weight: 500; }
+.feature-icon { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 10px;
+                background: rgb(255 255 255 / .12); }
+.feature-icon svg { width: 1.25rem; height: 1.25rem; }
+.auth-panel-foot { position: relative; display: flex; align-items: center; gap: .5rem; color: var(--on-teal-soft);
+                   font-size: var(--text-sm); }
+.auth-panel-foot svg { width: 1rem; height: 1rem; }
+.auth-watermark { position: absolute; right: -6rem; bottom: -6rem; width: 24rem; height: 24rem; opacity: .05;
+                  pointer-events: none; }
+.auth-main { display: flex; flex-direction: column; justify-content: center; gap: 1.25rem; width: 100%; max-width: 28rem;
+             margin: 0 auto; padding: 3rem 1.5rem; }
+.auth-main .card { padding: 2rem; }
+.auth-intro p { margin-top: .375rem; color: var(--muted); }
+
+/* Small one-card pages: not found, no access */
+.auth { display: flex; flex-direction: column; justify-content: center; max-width: 26rem; min-height: 100dvh;
+        margin: 0 auto; padding: 3rem 1.5rem; }
 
 /* Patient pages: one narrow column, phone first */
 .topbar { border-bottom: 1px solid var(--line); background: var(--surface); }
@@ -230,6 +253,18 @@ tbody tr:last-child td { border-bottom: 0; }
 @media (max-width: 1000px) {
   .cases { grid-template-columns: 1fr; }
   .case-detail { position: static; }
+}
+
+/* Phones and small tablets: the brand panel shrinks to a header above the form */
+@media (max-width: 900px) {
+  .auth-page { grid-template-columns: 1fr; }
+  .auth-panel { gap: 1.25rem; padding: 1.5rem 1rem 1.75rem; }
+  .auth-pitch { margin: 0; gap: .5rem; }
+  .auth-headline { font-size: var(--text-xl); }
+  .auth-pitch > p:not(.auth-headline) { font-size: var(--text-md); }
+  .auth-features, .auth-panel-foot, .auth-watermark { display: none; }
+  .auth-main { justify-content: flex-start; padding: 1.5rem 1rem 2.5rem; }
+  .auth-main .card { padding: 1.5rem; }
 }
 
 @media (max-width: 800px) {

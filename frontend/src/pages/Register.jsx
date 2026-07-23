@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api } from "../api.js";
-import { Logo } from "../ui.jsx";
+import AuthLayout from "../AuthLayout.jsx";
 
 export default function Register({ setUser }) {
   const navigate = useNavigate();
@@ -22,11 +22,13 @@ export default function Register({ setUser }) {
   }
 
   return (
-    <main className="auth">
+    <AuthLayout>
       <title>Register - AgentCare</title>
-      <Logo subtitle="Patient administration and care coordination" />
       <form className="card form" onSubmit={submit}>
-        <h1>Register as a patient</h1>
+        <div className="auth-intro">
+          <h1>Register as a patient</h1>
+          <p>Staff accounts are set up by the hospital.</p>
+        </div>
         {error && (
           <p className="error" role="alert">
             {error}
@@ -59,6 +61,6 @@ export default function Register({ setUser }) {
           Already registered? <Link to="/login">Log in</Link>
         </p>
       </form>
-    </main>
+    </AuthLayout>
   );
 }
