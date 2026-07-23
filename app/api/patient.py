@@ -2,13 +2,14 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import RowMapping
 from sqlalchemy.orm import Session
 
 from app.auth.deps import require_role
 from app.db.session import get_db
+from app.graph.runner import run_request
 from app.services.patient import create_request, get_request
 
 patient_user = require_role("PATIENT")
@@ -26,8 +27,8 @@ class NewRequest(BaseModel):
 
 
 @router.post("/requests", status_code=201)
-def submit(user: User, db: Db, body: NewRequest) -> dict:
-    """Save the request. Returns its id."""
+def submit(request: Request, user: User, db: Db, body: NewRequest, background: BackgroundTasks) -> dict:
+    """Save the request and start its workflow in the background. Returns its id at once."""
     request_text = body.request_text.strip()
     if not request_text:
         raise HTTPException(status_code=400, detail="Please describe what you need.")
@@ -35,7 +36,9 @@ def submit(user: User, db: Db, body: NewRequest) -> dict:
         raise HTTPException(
             status_code=400, detail=f"Please keep your request to at most {MAX_REQUEST_CHARS} characters."
         )
-    return {"id": create_request(db, user["id"], request_text)}
+    run_id = create_request(db, user["id"], request_text)
+    background.add_task(run_request, request.app.state.session_factory, run_id)
+    return {"id": run_id}
 
 
 @router.get("/requests/{run_id}")

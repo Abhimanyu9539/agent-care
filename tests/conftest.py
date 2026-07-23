@@ -38,6 +38,8 @@ def app() -> Iterator[FastAPI]:
                 f"(SELECT id FROM patient_profiles WHERE user_id IN ({TEST_USERS}))"
             )
         )
+        test_runs = f"SELECT id FROM workflow_runs WHERE created_by IN ({TEST_USERS})"
+        connection.execute(text(f"DELETE FROM workflow_steps WHERE run_id IN ({test_runs})"))
         connection.execute(text(f"DELETE FROM workflow_runs WHERE created_by IN ({TEST_USERS})"))
         connection.execute(text(f"DELETE FROM patient_profiles WHERE user_id IN ({TEST_USERS})"))
         connection.execute(text(f"DELETE FROM users WHERE id IN ({TEST_USERS})"))

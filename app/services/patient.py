@@ -32,10 +32,13 @@ def create_request(db: Session, user_id: int, request_text: str) -> int:
 
 
 def get_request(db: Session, run_id: int, user_id: int) -> RowMapping | None:
-    """The request, or None when it does not exist or belongs to another patient."""
+    """The request, or None when it does not exist or belongs to another patient.
+
+    `safety` is what the safety step found (EMERGENCY, CLINICAL_ADVICE or ADMIN), or None before it has run.
+    """
     return db.execute(
         text(
-            "SELECT r.id, r.request_text, r.status, r.created_at "
+            "SELECT r.id, r.request_text, r.status, r.created_at, r.snapshot->>'safety' AS safety "
             "FROM workflow_runs r JOIN patient_profiles p ON p.id = r.patient_id "
             "WHERE r.id = :run_id AND p.user_id = :user_id"
         ),

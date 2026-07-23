@@ -33,29 +33,30 @@ def _submit(client: TestClient, request_text: str) -> Response:
     return client.post("/api/patient/requests", json={"request_text": request_text})
 
 
-def test_submit_saves_a_running_request_and_an_audit_event(app: FastAPI) -> None:
+def test_submit_saves_the_request_and_an_audit_event(app: FastAPI) -> None:
     client = _new_patient(app)
 
     response = _submit(client, "  I need a cardiology follow-up next week.  ")
 
+    # The test client waits for background tasks, so the workflow has already run by now
+    # (see test_workflow.py for what it does).
     assert response.status_code == 201
     run_id = response.json()["id"]
     with app.state.engine.connect() as connection:
-        run = connection.execute(
-            text("SELECT status, request_text FROM workflow_runs WHERE id = :id"), {"id": run_id}
-        ).mappings().one()
-        events = connection.execute(
-            text("SELECT action, entity_type, entity_id FROM audit_events WHERE workflow_run_id = :id"),
+        request_text = connection.execute(
+            text("SELECT request_text FROM workflow_runs WHERE id = :id"), {"id": run_id}
+        ).scalar_one()
+        first_event = connection.execute(
+            text("SELECT action, entity_type, entity_id FROM audit_events WHERE workflow_run_id = :id ORDER BY id"),
             {"id": run_id},
-        ).all()
-    assert run["status"] == "RUNNING"
-    assert run["request_text"] == "I need a cardiology follow-up next week."
-    assert events == [("request.create", "workflow_run", run_id)]
+        ).first()
+    assert request_text == "I need a cardiology follow-up next week."
+    assert first_event == ("request.create", "workflow_run", run_id)
 
     shown = client.get(f"/api/patient/requests/{run_id}").json()
     assert shown["id"] == run_id
     assert shown["request_text"] == "I need a cardiology follow-up next week."
-    assert shown["status"] == "RUNNING"
+    assert shown["status"] == "COMPLETED"
     assert shown["created_at"]
 
 
