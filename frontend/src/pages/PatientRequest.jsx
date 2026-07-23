@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { api } from "../api.js";
@@ -16,6 +16,12 @@ const NEXT_STEP = {
   CANCELLED: ["Cancelled", "This request was cancelled."],
 };
 
+// A clinical question is declined: AgentCare never advises on medicines or diagnoses.
+const DECLINED = [
+  "We can't answer this here",
+  "Questions about medicines, doses or a diagnosis need a doctor. Send a new request to book a visit, and a doctor can help.",
+];
+
 // "10:38" for today, "14 Nov 10:38" for an earlier day, in the browser's time zone.
 function savedAt(iso) {
   const date = new Date(iso);
@@ -30,9 +36,18 @@ export default function PatientRequest() {
   const [run, setRun] = useState(null);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  function load() {
     api(`/api/patient/requests/${id}`).then(setRun, (e) => setError(e.message));
-  }, [id]);
+  }
+
+  useEffect(load, [id]);
+
+  // The workflow runs in the background: while it does, check again every 2 seconds.
+  useEffect(() => {
+    if (run?.status !== "RUNNING") return;
+    const timer = setTimeout(load, 2000);
+    return () => clearTimeout(timer);
+  }, [run]);
 
   const another = (
     <p className="center">
@@ -52,12 +67,28 @@ export default function PatientRequest() {
   }
   if (run === null) return <PatientLayout title="Your request" />;
 
-  const [stepTitle, stepText] = NEXT_STEP[run.status] ?? [run.status, ""];
+  const [stepTitle, stepText] =
+    run.safety === "CLINICAL_ADVICE" ? DECLINED : (NEXT_STEP[run.status] ?? [run.status, ""]);
   const finished = run.status === "COMPLETED";
 
   return (
     <PatientLayout title="Your request" subtitle={`WR-${run.id}`}>
       <title>{`Request WR-${run.id} - AgentCare`}</title>
+      {run.safety === "EMERGENCY" && (
+        <section className="emergency" role="alert">
+          <TriangleAlert aria-hidden="true" />
+          <div className="stack">
+            <h2>Call 112 now</h2>
+            <p>
+              What you describe may be an emergency. Don't wait for a booking: call 112 or go to the nearest emergency
+              department. Our staff have been alerted.
+            </p>
+            <a className="btn btn-urgent" href="tel:112">
+              Call 112
+            </a>
+          </div>
+        </section>
+      )}
       <section className="card">
         <div className="request-head">
           <RunStatus status={run.status} />

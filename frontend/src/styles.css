@@ -76,6 +76,8 @@ button:disabled { cursor: not-allowed; }
 .btn:disabled { opacity: .55; }
 .btn-primary { background: var(--teal); color: var(--on-teal); }
 .btn-primary:hover:not(:disabled) { background: var(--teal-dark); }
+.btn-urgent { background: var(--urgent); color: var(--on-teal); }
+.btn-urgent:hover { text-decoration: none; }
 .btn-secondary { background: var(--surface); border-color: var(--line); font-weight: 500; }
 .btn-secondary:hover:not(:disabled) { border-color: var(--teal); }
 .btn-block { width: 100%; }
@@ -186,6 +188,13 @@ textarea { min-height: 8rem; resize: vertical; line-height: 1.6; }
 .chip svg { width: 1.125rem; height: 1.125rem; }
 .request-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
 .quote { margin-top: .875rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* An emergency: the one message a patient must not miss */
+.emergency { display: flex; gap: .875rem; padding: 1.25rem 1.5rem; border: 1px solid var(--urgent-line);
+             border-radius: 16px; background: var(--urgent-tint); }
+.emergency > svg { width: 1.5rem; height: 1.5rem; color: var(--urgent); }
+.emergency h2 { color: var(--urgent); }
+.emergency .btn { align-self: flex-start; }
 
 /* Progress steps */
 .steps { margin: 0; padding: 0; list-style: none; }
