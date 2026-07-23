@@ -10,6 +10,7 @@ from app.auth.deps import require_role
 from app.db.session import get_db
 from app.services.appointment import list_upcoming_slots
 from app.services.escalation import list_open_escalations, resolve_escalation
+from app.services.workflow import get_run, list_steps
 
 staff_user = require_role("STAFF", "ADMIN")
 
@@ -30,6 +31,15 @@ def slots(request: Request, db: Db) -> list[dict]:
 def escalations(db: Db) -> list[dict]:
     """Open cases handed to staff, most urgent first."""
     return [dict(row) for row in list_open_escalations(db)]
+
+
+@router.get("/runs/{run_id}")
+def run(run_id: int, db: Db) -> dict:
+    """One request with its agent timeline: every step the workflow ran, in order."""
+    found = get_run(db, run_id)
+    if found is None:
+        raise HTTPException(status_code=404, detail="Request not found.")
+    return {"run": dict(found), "steps": [dict(step) for step in list_steps(db, run_id)]}
 
 
 @router.post("/escalations/{escalation_id}/resolve", status_code=204)

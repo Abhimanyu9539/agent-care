@@ -1,5 +1,6 @@
 import { ShieldCheck, TriangleAlert, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 import { api } from "../api.js";
 import StaffLayout from "../StaffLayout.jsx";
 import { Pill } from "../ui.jsx";
@@ -136,7 +137,13 @@ export default function StaffEscalations() {
               </div>
               <div>
                 <dt>Workflow run</dt>
-                <dd className="mono">{runId(open)}</dd>
+                <dd className="mono">
+                  {open.workflow_run_id ? (
+                    <Link to={`/staff/runs/${open.workflow_run_id}`}>{runId(open)}</Link>
+                  ) : (
+                    runId(open)
+                  )}
+                </dd>
               </div>
             </dl>
             <div className="decision">
