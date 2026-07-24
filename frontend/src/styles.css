@@ -207,7 +207,8 @@ textarea { min-height: 8rem; resize: vertical; line-height: 1.6; }
 .marker { display: grid; place-items: center; width: 2rem; height: 2rem; border: 2px solid var(--line);
           border-radius: 50%; background: var(--surface); }
 .done .marker { border-color: var(--teal); background: var(--teal); color: var(--on-teal); }
-.done .marker svg { width: 1rem; height: 1rem; }
+.done .marker svg, .failed .marker svg { width: 1rem; height: 1rem; }
+.failed .marker { border-color: var(--urgent); color: var(--urgent); }
 .active .marker { border-color: var(--info-ink); }
 .active .marker::after { content: ""; width: .625rem; height: .625rem; border-radius: 50%; background: var(--info-ink); }
 .steps h2 { margin-top: .25rem; font-size: var(--text-md); }
