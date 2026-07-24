@@ -26,7 +26,7 @@ def list_steps(db: Session, run_id: int) -> Sequence[RowMapping]:
     """The steps the workflow ran for this run, in order."""
     return db.execute(
         text(
-            "SELECT seq, agent, node, outcome, output, tool_calls, latency_ms, created_at "
+            "SELECT seq, agent, node, outcome, output, tool_calls, llm_meta, latency_ms, created_at "
             "FROM workflow_steps WHERE run_id = :id ORDER BY seq"
         ),
         {"id": run_id},
@@ -34,22 +34,38 @@ def list_steps(db: Session, run_id: int) -> Sequence[RowMapping]:
 
 
 def add_step(
-    db: Session, run_id: int, *, seq: int, agent: str, node: str, input_summary: dict, output: dict, latency_ms: int
+    db: Session,
+    run_id: int,
+    *,
+    seq: int,
+    agent: str,
+    node: str,
+    outcome: str,
+    input_summary: dict,
+    output: dict,
+    llm_meta: dict | None,
+    latency_ms: int,
 ) -> None:
-    """Save one finished step. Committed at once, so the timeline shows each step as it happens."""
+    """Save one finished step. Committed at once, so the timeline shows each step as it happens.
+
+    `llm_meta` is set when the step called the LLM: model, prompt version and tokens, never the text.
+    """
     db.execute(
         text(
-            "INSERT INTO workflow_steps (run_id, seq, agent, node, outcome, input_summary, output, latency_ms) "
-            "VALUES (:run_id, :seq, :agent, :node, 'OK', CAST(:input_summary AS jsonb), CAST(:output AS jsonb), "
-            "        :latency_ms)"
+            "INSERT INTO workflow_steps "
+            "  (run_id, seq, agent, node, outcome, input_summary, output, llm_meta, latency_ms) "
+            "VALUES (:run_id, :seq, :agent, :node, :outcome, CAST(:input_summary AS jsonb), CAST(:output AS jsonb), "
+            "        CAST(:llm_meta AS jsonb), :latency_ms)"
         ),
         {
             "run_id": run_id,
             "seq": seq,
             "agent": agent,
             "node": node,
+            "outcome": outcome,
             "input_summary": json.dumps(input_summary),
             "output": json.dumps(output),
+            "llm_meta": json.dumps(llm_meta) if llm_meta is not None else None,
             "latency_ms": latency_ms,
         },
     )

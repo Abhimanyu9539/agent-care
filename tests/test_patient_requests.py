@@ -33,7 +33,7 @@ def _submit(client: TestClient, request_text: str) -> Response:
     return client.post("/api/patient/requests", json={"request_text": request_text})
 
 
-def test_submit_saves_the_request_and_an_audit_event(app: FastAPI) -> None:
+def test_submit_saves_the_request_and_an_audit_event(app: FastAPI, fake_llm) -> None:
     client = _new_patient(app)
 
     response = _submit(client, "  I need a cardiology follow-up next week.  ")

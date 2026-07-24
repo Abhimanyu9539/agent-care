@@ -19,6 +19,8 @@ from fastapi import FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
+from app.agents.safety import agent as safety_agent  # noqa: E402
+from app.agents.safety.schema import SafetyVerdict  # noqa: E402
 from app.config import Settings  # noqa: E402
 from app.main import create_app  # noqa: E402
 
@@ -27,7 +29,8 @@ TEST_USERS = "SELECT id FROM users WHERE email LIKE 'test-%@example.com'"
 
 @pytest.fixture
 def app() -> Iterator[FastAPI]:
-    app = create_app(Settings(_env_file=None, secret_key="test-secret"))
+    # No API key: unless a test uses `fake_llm`, the LLM step fails, as it would with the key removed.
+    app = create_app(Settings(_env_file=None, secret_key="test-secret", open_router_api_key=None))
     yield app
     # Children first, so no foreign key blocks a delete.
     with app.state.engine.begin() as connection:
@@ -49,3 +52,23 @@ def app() -> Iterator[FastAPI]:
 @pytest.fixture
 def client(app: FastAPI) -> TestClient:
     return TestClient(app)
+
+
+class FakeLLM:
+    """Stands in for the safety LLM: answers `category` and remembers every text it was sent."""
+
+    def __init__(self) -> None:
+        self.category = "ADMIN"
+        self.sent: list[str] = []
+
+    def __call__(self, masked_text: str, settings: Settings) -> tuple[SafetyVerdict, dict]:
+        self.sent.append(masked_text)
+        return SafetyVerdict(category=self.category, reason="The fake LLM says so."), {"tokens_in": 10, "tokens_out": 5}
+
+
+@pytest.fixture
+def fake_llm(monkeypatch: pytest.MonkeyPatch) -> FakeLLM:
+    """Replace the real LLM call, so tests never reach OpenRouter."""
+    fake = FakeLLM()
+    monkeypatch.setattr(safety_agent, "ask_llm", fake)
+    return fake

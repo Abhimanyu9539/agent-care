@@ -37,7 +37,7 @@ def submit(request: Request, user: User, db: Db, body: NewRequest, background: B
             status_code=400, detail=f"Please keep your request to at most {MAX_REQUEST_CHARS} characters."
         )
     run_id = create_request(db, user["id"], request_text)
-    background.add_task(run_request, request.app.state.session_factory, run_id)
+    background.add_task(run_request, request.app.state.session_factory, request.app.state.settings, run_id)
     return {"id": run_id}
 
 
