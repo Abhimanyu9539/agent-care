@@ -12,20 +12,20 @@ from app.agents.safety.prompt import PROMPT_VERSION, SYSTEM_PROMPT
 from app.agents.safety.red_flags import check
 from app.agents.safety.schema import SafetyVerdict
 from app.config import Settings
-from app.graph.state import RequestState
+from app.graph.state import RequestState, WorkflowContext
 from app.llm.client import make_model
 from app.llm.mask import mask
 
 log = logging.getLogger(__name__)
 
 
-def safety_intake(state: RequestState, runtime: Runtime[Settings]) -> dict:
+def safety_intake(state: RequestState, runtime: Runtime[WorkflowContext]) -> dict:
     """Check the request for emergencies and medical-advice questions before anything else happens."""
     flag = check(state["request_text"])
     if flag is not None:
         return {"safety": {"category": flag.category, "rule_id": flag.rule_id, "reason": flag.reason, "source": "rules"}}
 
-    settings = runtime.context
+    settings = runtime.context.settings
     llm_meta = {"model": settings.llm_model, "prompt_version": PROMPT_VERSION}
     try:
         verdict, tokens = ask_llm(mask(state["request_text"], state["patient_name"]), settings)

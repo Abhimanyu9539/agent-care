@@ -19,6 +19,8 @@ from fastapi import FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
+from app.agents.routing import agent as routing_agent  # noqa: E402
+from app.agents.routing.schema import RoutingVerdict  # noqa: E402
 from app.agents.safety import agent as safety_agent  # noqa: E402
 from app.agents.safety.schema import SafetyVerdict  # noqa: E402
 from app.config import Settings  # noqa: E402
@@ -41,6 +43,12 @@ def app() -> Iterator[FastAPI]:
                 f"(SELECT id FROM patient_profiles WHERE user_id IN ({TEST_USERS}))"
             )
         )
+        connection.execute(
+            text(
+                "DELETE FROM appointments WHERE patient_id IN "
+                f"(SELECT id FROM patient_profiles WHERE user_id IN ({TEST_USERS}))"
+            )
+        )
         test_runs = f"SELECT id FROM workflow_runs WHERE created_by IN ({TEST_USERS})"
         connection.execute(text(f"DELETE FROM workflow_steps WHERE run_id IN ({test_runs})"))
         connection.execute(text(f"DELETE FROM workflow_runs WHERE created_by IN ({TEST_USERS})"))
@@ -55,20 +63,35 @@ def client(app: FastAPI) -> TestClient:
 
 
 class FakeLLM:
-    """Stands in for the safety LLM: answers `category` and remembers every text it was sent."""
+    """Stands in for the safety and routing LLMs, and remembers every text it was sent.
+
+    Safety answers `category`. Routing answers `route`, or raises it when it is an exception.
+    """
+
+    TOOL_CALLS = [{"tool": "list_departments", "args": {}, "ok": True, "ms": 1, "result_ref": "6 found"}]
 
     def __init__(self) -> None:
         self.category = "ADMIN"
+        self.route: RoutingVerdict | Exception = RoutingVerdict(
+            department="cardiology", visit_type="NEW", confidence=0.9, reason="The fake LLM says so."
+        )
         self.sent: list[str] = []
 
-    def __call__(self, masked_text: str, settings: Settings) -> tuple[SafetyVerdict, dict]:
+    def safety(self, masked_text: str, settings: Settings) -> tuple[SafetyVerdict, dict]:
         self.sent.append(masked_text)
         return SafetyVerdict(category=self.category, reason="The fake LLM says so."), {"tokens_in": 10, "tokens_out": 5}
+
+    def routing(self, masked_text: str, tools: list, settings: Settings) -> tuple[RoutingVerdict, list, dict]:
+        self.sent.append(masked_text)
+        if isinstance(self.route, Exception):
+            raise self.route
+        return self.route, self.TOOL_CALLS, {"tokens_in": 20, "tokens_out": 8}
 
 
 @pytest.fixture
 def fake_llm(monkeypatch: pytest.MonkeyPatch) -> FakeLLM:
-    """Replace the real LLM call, so tests never reach OpenRouter."""
+    """Replace the real LLM calls, so tests never reach OpenRouter."""
     fake = FakeLLM()
-    monkeypatch.setattr(safety_agent, "ask_llm", fake)
+    monkeypatch.setattr(safety_agent, "ask_llm", fake.safety)
+    monkeypatch.setattr(routing_agent, "ask_llm", fake.routing)
     return fake
