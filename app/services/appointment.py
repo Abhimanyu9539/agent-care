@@ -20,3 +20,18 @@ def list_upcoming_slots(db: Session, time_zone: str, limit: int = 200) -> Sequen
         ),
         {"tz": time_zone, "limit": limit},
     ).mappings().all()
+
+
+def list_patient_visits(db: Session, patient_id: int) -> Sequence[RowMapping]:
+    """One patient's appointments, oldest first: department, visit type, status and date. No free text."""
+    return db.execute(
+        text(
+            "SELECT dep.code AS department, a.visit_type, a.status, s.start_time::date AS date "
+            "FROM appointments a "
+            "JOIN departments dep ON dep.id = a.department_id "
+            "JOIN appointment_slots s ON s.id = a.slot_id "
+            "WHERE a.patient_id = :patient_id "
+            "ORDER BY s.start_time, a.id"
+        ),
+        {"patient_id": patient_id},
+    ).mappings().all()
