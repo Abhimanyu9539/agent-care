@@ -22,6 +22,23 @@ const DECLINED = [
   "Questions about medicines, doses or a diagnosis need a doctor. Send a new request to book a visit, and a doctor can help.",
 ];
 
+const VISIT = { NEW: "a new visit", FOLLOW_UP: "a follow-up visit" };
+
+// The title and text of the step the request is at now.
+function nextStep(run) {
+  if (run.safety === "CLINICAL_ADVICE") return DECLINED;
+  if (run.department && run.changed_to_new) {
+    return [
+      `Sent to ${run.department}`,
+      `You haven't visited ${run.department} with us before, so we'll register this as a new visit.`,
+    ];
+  }
+  if (run.department) {
+    return [`Sent to ${run.department}`, `The ${run.department} team has your request for ${VISIT[run.visit_type]}.`];
+  }
+  return NEXT_STEP[run.status] ?? [run.status, ""];
+}
+
 // "10:38" for today, "14 Nov 10:38" for an earlier day, in the browser's time zone.
 function savedAt(iso) {
   const date = new Date(iso);
@@ -67,8 +84,7 @@ export default function PatientRequest() {
   }
   if (run === null) return <PatientLayout title="Your request" />;
 
-  const [stepTitle, stepText] =
-    run.safety === "CLINICAL_ADVICE" ? DECLINED : (NEXT_STEP[run.status] ?? [run.status, ""]);
+  const [stepTitle, stepText] = nextStep(run);
   const finished = run.status === "COMPLETED";
 
   return (

@@ -8,6 +8,7 @@ import PatientHome from "./pages/PatientHome.jsx";
 import PatientRequest from "./pages/PatientRequest.jsx";
 import Register from "./pages/Register.jsx";
 import StaffEscalations from "./pages/StaffEscalations.jsx";
+import StaffRequests from "./pages/StaffRequests.jsx";
 import StaffRun from "./pages/StaffRun.jsx";
 import StaffSlots from "./pages/StaffSlots.jsx";
 import "@fontsource/ibm-plex-sans/400.css";
@@ -44,6 +45,7 @@ function App() {
       </Route>
       <Route element={<RequireRole user={user} setUser={setUser} roles={["STAFF", "ADMIN"]} />}>
         <Route path="/staff/escalations" element={<StaffEscalations />} />
+        <Route path="/staff/requests" element={<StaffRequests />} />
         <Route path="/staff/runs/:id" element={<StaffRun />} />
         <Route path="/staff/slots" element={<StaffSlots />} />
       </Route>

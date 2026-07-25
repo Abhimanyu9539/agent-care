@@ -1,4 +1,4 @@
-import { Stethoscope, TriangleAlert } from "lucide-react";
+import { Inbox, Stethoscope, TriangleAlert } from "lucide-react";
 import { NavLink, useOutletContext } from "react-router";
 import LogoutButton from "./LogoutButton.jsx";
 import { Avatar, Logo, useFocusOnOpen } from "./ui.jsx";
@@ -23,6 +23,10 @@ export default function StaffLayout({ title, subtitle, children }) {
           <NavLink to="/staff/escalations">
             <TriangleAlert aria-hidden="true" />
             Escalations
+          </NavLink>
+          <NavLink to="/staff/requests">
+            <Inbox aria-hidden="true" />
+            Requests
           </NavLink>
           <NavLink to="/staff/slots">
             <Stethoscope aria-hidden="true" />

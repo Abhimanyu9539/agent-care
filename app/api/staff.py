@@ -10,7 +10,7 @@ from app.auth.deps import require_role
 from app.db.session import get_db
 from app.services.appointment import list_upcoming_slots
 from app.services.escalation import list_open_escalations, resolve_escalation
-from app.services.workflow import get_run, list_steps
+from app.services.workflow import get_run, list_runs, list_steps
 
 staff_user = require_role("STAFF", "ADMIN")
 
@@ -31,6 +31,12 @@ def slots(request: Request, db: Db) -> list[dict]:
 def escalations(db: Db) -> list[dict]:
     """Open cases handed to staff, most urgent first."""
     return [dict(row) for row in list_open_escalations(db)]
+
+
+@router.get("/runs")
+def runs(db: Db) -> list[dict]:
+    """The newest requests, with how the safety and routing steps decided each one."""
+    return [dict(row) for row in list_runs(db)]
 
 
 @router.get("/runs/{run_id}")
