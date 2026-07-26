@@ -13,8 +13,8 @@ from app.agents.safety.red_flags import check
 from app.agents.safety.schema import SafetyVerdict
 from app.config import Settings
 from app.graph.state import RequestState, WorkflowContext
-from app.llm.client import make_model
 from app.llm.mask import mask
+from app.llm.structured import ask_structured
 
 log = logging.getLogger(__name__)
 
@@ -45,9 +45,4 @@ def safety_intake(state: RequestState, runtime: Runtime[WorkflowContext]) -> dic
 
 def ask_llm(masked_text: str, settings: Settings) -> tuple[SafetyVerdict, dict]:
     """The LLM's verdict on an already masked request, and the tokens it used. Raises if it can't answer."""
-    model = make_model(settings).with_structured_output(SafetyVerdict, method="function_calling", include_raw=True)
-    result = model.invoke([("system", SYSTEM_PROMPT), ("human", masked_text)])
-    if result["parsed"] is None:
-        raise ValueError("The LLM's answer did not fit the SafetyVerdict form.") from result["parsing_error"]
-    usage = result["raw"].usage_metadata or {}
-    return result["parsed"], {"tokens_in": usage.get("input_tokens"), "tokens_out": usage.get("output_tokens")}
+    return ask_structured(settings, SafetyVerdict, SYSTEM_PROMPT, masked_text)

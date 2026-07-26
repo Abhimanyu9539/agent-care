@@ -19,6 +19,11 @@ class RequestState(TypedDict):
     # Set by the safety step: {"category", "rule_id", "reason", "source": "rules" | "llm"}.
     # category is EMERGENCY, CLINICAL_ADVICE or ADMIN, or UNCHECKED when the LLM could not answer.
     safety: NotRequired[dict]
+    # Set by the coordinator's first turn: {"result": "PLANNED" | "FAILED", "intent", "plan", "reason"}.
+    coordinator: NotRequired[dict]
+    # The agents still to run, in order, and the one the coordinator hands the request to next ("finish" at the end).
+    plan: NotRequired[list[str]]
+    next_agent: NotRequired[str]
     # Set by the routing step: {"result": "ROUTED" | "LOW_CONFIDENCE" | "FAILED", "reason", ...}.
     # When ROUTED: "department_id", "department_name", "visit_type", and "changed_to_new" when the patient
     # asked for a follow-up but has never visited that department, so it became a new visit.
