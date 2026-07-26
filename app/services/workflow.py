@@ -30,7 +30,8 @@ def list_runs(db: Session, limit: int = 100) -> Sequence[RowMapping]:
     """
     return db.execute(
         text(
-            "SELECT r.id, r.request_text, r.status, r.created_at, p.full_name AS patient, dep.name AS department, "
+            "SELECT r.id, r.request_text, r.status, r.created_at, r.intent, p.full_name AS patient, "
+            "       dep.name AS department, "
             "       r.snapshot->>'safety' AS safety, "
             "       safety_step.output->'safety'->>'source' AS safety_source, "
             "       routing_step.output->'routing' AS routing "
@@ -96,6 +97,11 @@ def add_step(
         },
     )
     db.commit()
+
+
+def set_intent(db: Session, run_id: int, intent: str) -> None:
+    """Save what the patient wants (BOOK, RESCHEDULE, CANCEL, DOCUMENTS_ONLY, STATUS). Does not commit."""
+    db.execute(text("UPDATE workflow_runs SET intent = :intent WHERE id = :id"), {"id": run_id, "intent": intent})
 
 
 def set_department(db: Session, run_id: int, department_id: int) -> None:

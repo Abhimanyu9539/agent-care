@@ -11,7 +11,7 @@ from app.graph.state import WorkflowContext
 from app.services import audit, escalation, workflow
 
 # Which agent each graph node belongs to, for the timeline.
-AGENTS = {"safety_intake": "safety", "route_request": "routing"}
+AGENTS = {"safety_intake": "safety", "coordinator": "coordinator", "route_request": "routing"}
 
 
 def run_request(session_factory: sessionmaker[Session], settings: Settings, run_id: int) -> None:
@@ -51,7 +51,7 @@ def run_request(session_factory: sessionmaker[Session], settings: Settings, run_
 
 
 def _save_outcome(db: Session, run: RowMapping, state: dict) -> None:
-    """Emergency or not checked: hand to staff. Clinical question: decline. Ordinary request: save the routing."""
+    """Emergency or not checked: hand to staff. Clinical question: decline. Ordinary request: save the plan's results."""
     safety = state["safety"]
     category = safety["category"]
     if category in ("EMERGENCY", "UNCHECKED"):
@@ -74,7 +74,11 @@ def _save_outcome(db: Session, run: RowMapping, state: dict) -> None:
             db, run, "COMPLETED", current_step="declined", agent="safety",
             snapshot={"safety": category, "rule_id": safety["rule_id"]},
         )
+    elif state["coordinator"]["result"] == "FAILED":
+        reason = state["coordinator"]["reason"]
+        _escalate(db, run, "SYSTEM_FAILURE", "NORMAL", reason, agent="coordinator", snapshot={"safety": "ADMIN"})
     else:
+        workflow.set_intent(db, run["id"], state["coordinator"]["intent"])
         _save_routing(db, run, state["routing"])
     db.commit()
 

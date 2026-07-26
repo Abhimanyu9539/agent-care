@@ -13,8 +13,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from langgraph.runtime import Runtime
+from pydantic import ValidationError
 from sqlalchemy import text
 
+from app.agents.coordinator.schema import CoordinatorPlan
 from app.agents.routing.schema import RoutingVerdict
 from app.agents.safety.agent import safety_intake
 from app.graph.state import WorkflowContext
@@ -136,9 +138,9 @@ def test_the_llm_decides_when_no_rule_matches(app: FastAPI, fake_llm, category, 
 def test_the_llm_never_sees_personal_details(app: FastAPI, fake_llm) -> None:
     _submit(_sign_up(app), "I am Test Patient, call me on +91 98765 43210 or write to me at tp@mail.com")
 
-    # Once for safety, once for routing: both masked.
+    # Once each for safety, the coordinator and routing: all masked.
     masked = "I am [NAME] [NAME], call me on [NUMBER] or write to me at [EMAIL]"
-    assert fake_llm.sent == [masked, masked]
+    assert fake_llm.sent == [masked, masked, masked]
 
 
 def test_without_an_api_key_the_request_goes_to_staff(app: FastAPI) -> None:
@@ -180,10 +182,54 @@ def test_staff_list_requests_with_how_each_was_decided(app: FastAPI, fake_llm) -
     listed = {run["id"]: run for run in _sign_up(app, "STAFF").get("/api/staff/runs").json()}
 
     assert listed[routed["id"]]["safety"] == "ADMIN" and listed[routed["id"]]["safety_source"] == "llm"
+    assert listed[routed["id"]]["intent"] == "BOOK"
     assert listed[routed["id"]]["department"] == "Cardiology"
     assert listed[routed["id"]]["routing"]["result"] == "ROUTED"
     assert (listed[emergency["id"]]["safety_source"], listed[emergency["id"]]["routing"]) == ("rules", None)
     assert patient.get("/api/staff/runs").status_code == 403
+
+
+# Coordinator
+
+
+def test_the_coordinator_hands_the_request_to_routing_and_finishes(app: FastAPI, fake_llm) -> None:
+    fake_llm.plan = CoordinatorPlan(intent="RESCHEDULE", plan=["routing", "routing"], reason="Move a visit.")
+
+    run = _submit(_sign_up(app), "Please move my cardiology visit to Friday")
+
+    assert run["status"] == "COMPLETED"
+    steps = _rows(app, "SELECT agent, node, output, llm_meta FROM workflow_steps WHERE run_id = :id ORDER BY seq", run["id"])
+    # The plan named routing twice, but each agent runs once.
+    assert [step[:2] for step in steps] == [
+        ("safety", "safety_intake"), ("coordinator", "coordinator"), ("routing", "route_request"), ("coordinator", "coordinator")
+    ]
+    first_turn, last_turn = steps[1], steps[3]
+    assert first_turn[2]["coordinator"] == {
+        "result": "PLANNED", "intent": "RESCHEDULE", "plan": ["routing"], "reason": "Move a visit."
+    }
+    assert first_turn[2]["next_agent"] == "routing" and first_turn[3]["prompt_version"] == "coordinator-v1"
+    # The last turn just follows the plan: no LLM call.
+    assert (last_turn[2], last_turn[3]) == ({"next_agent": "finish", "plan": []}, None)
+    assert _rows(app, "SELECT intent FROM workflow_runs WHERE id = :id", run["id"]) == [("RESCHEDULE",)]
+
+
+def test_the_coordinator_can_only_plan_agents_that_exist() -> None:
+    with pytest.raises(ValidationError):
+        CoordinatorPlan(intent="BOOK", plan=["billing"], reason="No such agent.")
+    with pytest.raises(ValidationError):
+        CoordinatorPlan(intent="BOOK", plan=[], reason="Nothing to do.")
+
+
+def test_when_the_coordinator_llm_fails_the_request_goes_to_staff(app: FastAPI, fake_llm) -> None:
+    fake_llm.plan = TimeoutError()
+
+    run = _submit(_sign_up(app), "Please help me with my dad")
+
+    assert run["status"] == "ESCALATED"
+    cases = _rows(app, "SELECT type, priority FROM escalations WHERE workflow_run_id = :id", run["id"])
+    assert cases == [("SYSTEM_FAILURE", "NORMAL")]
+    steps = _rows(app, "SELECT node, outcome FROM workflow_steps WHERE run_id = :id ORDER BY seq", run["id"])
+    assert steps == [("safety_intake", "OK"), ("coordinator", "FAILED")]  # routing never ran
 
 
 # Routing
@@ -216,9 +262,10 @@ def test_a_follow_up_goes_to_the_department_the_patient_visited(app: FastAPI, fa
         app, "SELECT d.code FROM workflow_runs r JOIN departments d ON d.id = r.department_id WHERE r.id = :id", run["id"]
     )
     assert department == "cardiology"
-    steps = _rows(app, "SELECT seq, agent, node, outcome, tool_calls FROM workflow_steps WHERE run_id = :id ORDER BY seq", run["id"])
-    assert [step[:4] for step in steps] == [(1, "safety", "safety_intake", "OK"), (2, "routing", "route_request", "OK")]
-    assert steps[1][4] == fake_llm.TOOL_CALLS
+    [(outcome, tool_calls)] = _rows(
+        app, "SELECT outcome, tool_calls FROM workflow_steps WHERE run_id = :id AND node = 'route_request'", run["id"]
+    )
+    assert (outcome, tool_calls) == ("OK", fake_llm.TOOL_CALLS)
 
 
 def test_a_follow_up_without_an_earlier_visit_becomes_a_new_visit(app: FastAPI, fake_llm) -> None:
@@ -251,6 +298,6 @@ def test_when_the_routing_llm_fails_the_request_goes_to_staff(app: FastAPI, fake
     cases = _rows(app, "SELECT type, priority FROM escalations WHERE workflow_run_id = :id", run["id"])
     assert cases == [("SYSTEM_FAILURE", "NORMAL")]
     [(outcome, llm_meta)] = _rows(
-        app, "SELECT outcome, llm_meta FROM workflow_steps WHERE run_id = :id AND seq = 2", run["id"]
+        app, "SELECT outcome, llm_meta FROM workflow_steps WHERE run_id = :id AND node = 'route_request'", run["id"]
     )
     assert (outcome, llm_meta["error"]) == ("FAILED", "TimeoutError")
