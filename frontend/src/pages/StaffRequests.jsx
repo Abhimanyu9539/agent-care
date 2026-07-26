@@ -14,6 +14,15 @@ const SAFETY = {
 
 const VISIT = { NEW: "new visit", FOLLOW_UP: "follow-up" };
 
+// What the patient wants, as the coordinator understood it.
+const INTENT = {
+  BOOK: "Book",
+  RESCHEDULE: "Reschedule",
+  CANCEL: "Cancel",
+  DOCUMENTS_ONLY: "Documents",
+  STATUS: "Status",
+};
+
 const sentAt = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",
   month: "short",
@@ -60,7 +69,7 @@ export default function StaffRequests() {
   return (
     <StaffLayout
       title="Requests"
-      subtitle="Every patient request, newest first. Safety shows whether a word rule or the LLM decided; routing is always the LLM."
+      subtitle="Every patient request, newest first. Intent is what the coordinator understood the patient wants. Safety shows whether a word rule or the LLM decided; routing is always the LLM."
     >
       <title>Requests - AgentCare</title>
       {error && (
@@ -84,6 +93,7 @@ export default function StaffRequests() {
                   <th>Patient</th>
                   <th>Sent</th>
                   <th>Status</th>
+                  <th>Intent</th>
                   <th>Safety</th>
                   <th>Routing</th>
                 </tr>
@@ -102,6 +112,7 @@ export default function StaffRequests() {
                     <td>
                       <RunStatus status={run.status} />
                     </td>
+                    <td>{run.intent ? (INTENT[run.intent] ?? run.intent) : "—"}</td>
                     <td className="nowrap">{safetyText(run)}</td>
                     <td>{routingText(run)}</td>
                   </tr>
