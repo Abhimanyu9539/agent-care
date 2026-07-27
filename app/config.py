@@ -1,5 +1,6 @@
 """Application settings loaded from environment variables and `.env`."""
 
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -43,10 +44,33 @@ class Settings(BaseSettings):
 
     langsmith_tracing: bool = False
     langsmith_api_key: SecretStr | None = None
+    langsmith_endpoint: str | None = None
+    # Where traces go: a project, or an agent id and environment. Set one or the other.
     langsmith_project: str | None = None
+    langsmith_agent_id: str | None = None
+    langsmith_agent_environment: str | None = None
 
 
 @lru_cache
 def get_settings() -> Settings:
     """Return the process-wide settings, loaded once."""
     return Settings()
+
+
+def export_langsmith(settings: Settings) -> None:
+    """When tracing is on, copy the LangSmith settings into the environment, the only place LangSmith reads them.
+
+    Settings read `.env` but leave the environment alone, so without this `.env` could not turn tracing on.
+    """
+    if not settings.langsmith_tracing:
+        return
+    api_key = settings.langsmith_api_key.get_secret_value() if settings.langsmith_api_key else None
+    values = {
+        "LANGSMITH_TRACING": "true",
+        "LANGSMITH_API_KEY": api_key,
+        "LANGSMITH_ENDPOINT": settings.langsmith_endpoint,
+        "LANGSMITH_PROJECT": settings.langsmith_project,
+        "LANGSMITH_AGENT_ID": settings.langsmith_agent_id,
+        "LANGSMITH_AGENT_ENVIRONMENT": settings.langsmith_agent_environment,
+    }
+    os.environ.update({name: value for name, value in values.items() if value})
