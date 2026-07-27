@@ -8,13 +8,18 @@ from sqlalchemy.orm import Session
 
 from app.services import audit
 
+# A run is stuck when it is RUNNING but has made no progress for 10 minutes, such as when the server
+# restarted mid-run and its background job was lost. Staff can retry it, like a FAILED run.
+STUCK = "(r.status = 'RUNNING' AND r.updated_at < now() - interval '10 minutes')"
+RETRYABLE = f"(r.status = 'FAILED' OR {STUCK})"
+
 
 def get_run(db: Session, run_id: int) -> RowMapping | None:
     """The run with the patient's name, or None."""
     return db.execute(
         text(
             "SELECT r.id, r.patient_id, r.created_by, r.request_text, r.status, r.current_step, r.snapshot, "
-            "       r.error, r.created_at, r.updated_at, p.full_name AS patient "
+            f"      r.error, r.attempt, r.created_at, r.updated_at, p.full_name AS patient, {STUCK} AS stuck "
             "FROM workflow_runs r JOIN patient_profiles p ON p.id = r.patient_id "
             "WHERE r.id = :id"
         ),
@@ -26,20 +31,20 @@ def list_runs(db: Session, limit: int = 100) -> Sequence[RowMapping]:
     """The newest runs, with how each was decided.
 
     `safety` is the category, `safety_source` "rules" or "llm" (from the safety step), and `routing`
-    the routing step's decision, or None when the request never reached routing.
+    the routing step's decision, or None when the request never reached routing. A retried run has
+    these steps once per attempt, so the latest one counts.
     """
+    latest = "(SELECT output FROM workflow_steps s WHERE s.run_id = r.id AND s.node = '{}' ORDER BY s.seq DESC LIMIT 1)"
     return db.execute(
         text(
             "SELECT r.id, r.request_text, r.status, r.created_at, r.intent, p.full_name AS patient, "
-            "       dep.name AS department, "
+            f"      dep.name AS department, {STUCK} AS stuck, "
             "       r.snapshot->>'safety' AS safety, "
-            "       safety_step.output->'safety'->>'source' AS safety_source, "
-            "       routing_step.output->'routing' AS routing "
+            f"      {latest.format('safety_intake')}->'safety'->>'source' AS safety_source, "
+            f"      {latest.format('route_request')}->'routing' AS routing "
             "FROM workflow_runs r "
             "JOIN patient_profiles p ON p.id = r.patient_id "
             "LEFT JOIN departments dep ON dep.id = r.department_id "
-            "LEFT JOIN workflow_steps safety_step ON safety_step.run_id = r.id AND safety_step.node = 'safety_intake' "
-            "LEFT JOIN workflow_steps routing_step ON routing_step.run_id = r.id AND routing_step.node = 'route_request' "
             "ORDER BY r.created_at DESC, r.id DESC LIMIT :limit"
         ),
         {"limit": limit},
@@ -47,14 +52,22 @@ def list_runs(db: Session, limit: int = 100) -> Sequence[RowMapping]:
 
 
 def list_steps(db: Session, run_id: int) -> Sequence[RowMapping]:
-    """The steps the workflow ran for this run, in order."""
+    """The steps the workflow ran for this run, in order. A retried run lists every attempt's steps."""
     return db.execute(
         text(
-            "SELECT seq, agent, node, outcome, output, tool_calls, llm_meta, latency_ms, created_at "
+            "SELECT seq, agent, node, outcome, output, tool_calls, llm_meta, latency_ms, created_at, "
+            "       (input_summary->>'attempt')::int AS attempt "
             "FROM workflow_steps WHERE run_id = :id ORDER BY seq"
         ),
         {"id": run_id},
     ).mappings().all()
+
+
+def next_seq(db: Session, run_id: int) -> int:
+    """The number for the run's next step: 1, or one more than the last step of an earlier attempt."""
+    return db.execute(
+        text("SELECT coalesce(max(seq), 0) + 1 FROM workflow_steps WHERE run_id = :id"), {"id": run_id}
+    ).scalar_one()
 
 
 def add_step(
@@ -96,6 +109,8 @@ def add_step(
             "latency_ms": latency_ms,
         },
     )
+    # Progress: a run whose updated_at moves on is not stuck.
+    db.execute(text("UPDATE workflow_runs SET updated_at = now() WHERE id = :id"), {"id": run_id})
     db.commit()
 
 
@@ -139,3 +154,52 @@ def set_status(db: Session, run: RowMapping, status: str, *, current_step: str, 
         workflow_run_id=run["id"],
         metadata={"from": run["status"], "to": status},
     )
+
+
+def mark_failed(db: Session, run: RowMapping, error: dict) -> None:
+    """Mark the run FAILED with what went wrong ({"code", "message"}, never patient text). Does not commit."""
+    db.execute(
+        text("UPDATE workflow_runs SET status = 'FAILED', error = CAST(:error AS jsonb), updated_at = now() WHERE id = :id"),
+        {"id": run["id"], "error": json.dumps(error)},
+    )
+    audit.record(
+        db,
+        actor_user_id=run["created_by"],
+        actor_agent="workflow",
+        action="workflow.status_change",
+        entity_type="workflow_run",
+        entity_id=run["id"],
+        workflow_run_id=run["id"],
+        metadata={"from": run["status"], "to": "FAILED", "error": error["code"]},
+    )
+
+
+def start_retry(db: Session, run: RowMapping, staff_user_id: int) -> int | None:
+    """Reset a failed or stuck run so it can run again from the start, with its audit event.
+
+    Returns the new attempt number, or None when the run is neither failed nor stuck. The earlier
+    attempts' steps stay, as history.
+    """
+    attempt = db.execute(
+        text(
+            "UPDATE workflow_runs r SET status = 'RUNNING', attempt = r.attempt + 1, error = NULL, "
+            "  current_step = 'safety_intake', snapshot = '{}', intent = NULL, department_id = NULL, "
+            "  completed_at = NULL, updated_at = now() "
+            f"WHERE r.id = :id AND {RETRYABLE} "
+            "RETURNING r.attempt"
+        ),
+        {"id": run["id"]},
+    ).scalar_one_or_none()
+    if attempt is None:
+        return None
+    audit.record(
+        db,
+        actor_user_id=staff_user_id,
+        action="workflow.retry",
+        entity_type="workflow_run",
+        entity_id=run["id"],
+        workflow_run_id=run["id"],
+        metadata={"from": run["status"], "attempt": attempt},
+    )
+    db.commit()
+    return attempt

@@ -4,6 +4,7 @@ from sqlalchemy import RowMapping, text
 from sqlalchemy.orm import Session
 
 from app.services import audit
+from app.services.workflow import STUCK
 
 
 def create_request(db: Session, user_id: int, request_text: str) -> int:
@@ -36,11 +37,12 @@ def get_request(db: Session, run_id: int, user_id: int) -> RowMapping | None:
 
     `safety` is what the safety step found (EMERGENCY, CLINICAL_ADVICE or ADMIN), or None before it has run.
     When the request was routed: `department` (its name), `visit_type`, and `changed_to_new` when the
-    patient asked for a follow-up but had never visited that department.
+    patient asked for a follow-up but had never visited that department. `stuck` when it has been
+    RUNNING with no progress for 10 minutes.
     """
     return db.execute(
         text(
-            "SELECT r.id, r.request_text, r.status, r.created_at, r.snapshot->>'safety' AS safety, "
+            f"SELECT r.id, r.request_text, r.status, r.created_at, {STUCK} AS stuck, r.snapshot->>'safety' AS safety, "
             "       r.snapshot->>'department' AS department, r.snapshot->>'visit_type' AS visit_type, "
             "       (r.snapshot->>'changed_to_new')::boolean AS changed_to_new "
             "FROM workflow_runs r JOIN patient_profiles p ON p.id = r.patient_id "
