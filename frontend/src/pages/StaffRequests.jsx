@@ -110,7 +110,7 @@ export default function StaffRequests() {
                     <td className="nowrap">{run.patient}</td>
                     <td className="mono nowrap">{sentAt.format(new Date(run.created_at))}</td>
                     <td>
-                      <RunStatus status={run.status} />
+                      <RunStatus status={run.status} stuck={run.stuck} />
                     </td>
                     <td>{run.intent ? (INTENT[run.intent] ?? run.intent) : "—"}</td>
                     <td className="nowrap">{safetyText(run)}</td>

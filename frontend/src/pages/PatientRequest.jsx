@@ -12,7 +12,7 @@ const NEXT_STEP = {
   WAITING_APPROVAL: ["With the hospital team", "A staff member needs to approve the next step."],
   ESCALATED: ["Handed to the hospital team", "A staff member will contact you."],
   COMPLETED: ["Done", "Your request is complete."],
-  FAILED: ["Something went wrong", "We couldn't finish this request. Please send it again."],
+  FAILED: ["Something went wrong", "Something went wrong on our side. Our team has been told and will try again."],
   CANCELLED: ["Cancelled", "This request was cancelled."],
 };
 
@@ -26,6 +26,7 @@ const VISIT = { NEW: "a new visit", FOLLOW_UP: "a follow-up visit" };
 
 // The title and text of the step the request is at now.
 function nextStep(run) {
+  if (run.stuck) return ["Taking longer than usual", "Something held up your request. Our team will look at it."];
   if (run.safety === "CLINICAL_ADVICE") return DECLINED;
   if (run.department && run.changed_to_new) {
     return [
@@ -59,9 +60,9 @@ export default function PatientRequest() {
 
   useEffect(load, [id]);
 
-  // The workflow runs in the background: while it does, check again every 2 seconds.
+  // The workflow runs in the background: while it does, check again every 2 seconds. A stuck run waits for staff.
   useEffect(() => {
-    if (run?.status !== "RUNNING") return;
+    if (run?.status !== "RUNNING" || run.stuck) return;
     const timer = setTimeout(load, 2000);
     return () => clearTimeout(timer);
   }, [run]);

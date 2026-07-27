@@ -57,8 +57,11 @@ const RUN_STATUS = {
   CANCELLED: { tone: "neutral", icon: <X />, label: "Cancelled" },
 };
 
-export function RunStatus({ status }) {
-  const { tone, icon, label } = RUN_STATUS[status] ?? { tone: "neutral", label: status };
+// Staff see a run that has been RUNNING with no progress for 10 minutes as Stuck.
+const STUCK = { tone: "failed", icon: <Clock />, label: "Stuck" };
+
+export function RunStatus({ status, stuck = false }) {
+  const { tone, icon, label } = stuck ? STUCK : (RUN_STATUS[status] ?? { tone: "neutral", label: status });
   return (
     <Pill tone={tone} icon={icon}>
       {label}
