@@ -2,15 +2,16 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from sqlalchemy import RowMapping
 from sqlalchemy.orm import Session
 
 from app.auth.deps import require_role
 from app.db.session import get_db
+from app.graph.runner import run_request
 from app.services.appointment import list_upcoming_slots
 from app.services.escalation import list_open_escalations, resolve_escalation
-from app.services.workflow import get_run, list_runs, list_steps
+from app.services.workflow import get_run, list_runs, list_steps, start_retry
 
 staff_user = require_role("STAFF", "ADMIN")
 
@@ -46,6 +47,19 @@ def run(run_id: int, db: Db) -> dict:
     if found is None:
         raise HTTPException(status_code=404, detail="Request not found.")
     return {"run": dict(found), "steps": [dict(step) for step in list_steps(db, run_id)]}
+
+
+@router.post("/runs/{run_id}/retry", status_code=202)
+def retry(run_id: int, request: Request, user: User, db: Db, background: BackgroundTasks) -> dict:
+    """Run a failed or stuck request again from the start, in the background. 409 when it is neither."""
+    found = get_run(db, run_id)
+    if found is None:
+        raise HTTPException(status_code=404, detail="Request not found.")
+    attempt = start_retry(db, found, user["id"])
+    if attempt is None:
+        raise HTTPException(status_code=409, detail="Only a failed or stuck request can be retried.")
+    background.add_task(run_request, request.app.state.session_factory, request.app.state.settings, run_id)
+    return {"attempt": attempt}
 
 
 @router.post("/escalations/{escalation_id}/resolve", status_code=204)
