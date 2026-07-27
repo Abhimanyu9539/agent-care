@@ -12,7 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.api.patient import router as patient_router
 from app.api.staff import router as staff_router
 from app.auth.routes import router as auth_router
-from app.config import Settings, get_settings
+from app.config import Settings, export_langsmith, get_settings
 from app.db.session import make_engine, make_session_factory
 
 # The React app's production build (`npm run build` in frontend/).
@@ -22,6 +22,7 @@ FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the FastAPI app. Tests may pass their own settings."""
     settings = settings or get_settings()
+    export_langsmith(settings)  # before any workflow runs, so LangSmith sees it
 
     app = FastAPI(title="AgentCare")
     app.state.settings = settings

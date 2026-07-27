@@ -53,10 +53,12 @@ def _run(db: Session, settings: Settings, run_id: int, steps_done: list[str]) ->
     input_summary = {"text_chars": len(run["request_text"]), "attempt": run["attempt"]}
     context = WorkflowContext(settings=settings, db=db)
     first_seq = workflow.next_seq(db, run_id)  # a retry carries on after the earlier attempts' steps
+    # How the run shows up in LangSmith: one trace per attempt, found by the run id the staff console shows.
+    config = {"run_name": "workflow", "metadata": {"run_id": run_id, "attempt": run["attempt"]}}
 
     started = time.perf_counter()
     # "updates" yields {node: what it returned} as each node finishes.
-    for seq, update in enumerate(GRAPH.stream(state, context=context, stream_mode="updates"), start=first_seq):
+    for seq, update in enumerate(GRAPH.stream(state, config, context=context, stream_mode="updates"), start=first_seq):
         [(node, output)] = update.items()
         latency_ms = round((time.perf_counter() - started) * 1000)
         # The LLM details and tool calls have their own columns; the rest is the step's output.

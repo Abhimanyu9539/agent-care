@@ -11,6 +11,7 @@ import os
 
 os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("APP_ENV", "test")
+os.environ["LANGSMITH_TRACING"] = "false"  # tests never send traces, even when .env turns tracing on
 
 from collections.abc import Iterator  # noqa: E402 (imports after the environment defaults)
 

@@ -12,6 +12,7 @@ import uuid
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from langchain_core.tracers.context import collect_runs
 from langgraph.runtime import Runtime
 from pydantic import ValidationError
 from sqlalchemy import text
@@ -380,3 +381,17 @@ def test_only_failed_or_stuck_requests_can_be_retried(app: FastAPI, fake_llm) ->
     assert (response.status_code, response.json()["detail"]) == (409, "Only a failed or stuck request can be retried.")
     assert staff.post("/api/staff/runs/999999999/retry").status_code == 404
     assert patient.post(f"/api/staff/runs/{completed}/retry").status_code == 403
+
+
+# Tracing
+
+
+def test_the_trace_names_the_request_and_attempt(app: FastAPI, fake_llm) -> None:
+    patient = _sign_up(app)
+
+    with collect_runs() as traces:  # collects what LangSmith would be sent
+        run_id = _submit(patient, "Book a cardiology visit")["id"]
+
+    [trace] = traces.traced_runs
+    assert trace.name == "workflow"
+    assert (trace.extra["metadata"]["run_id"], trace.extra["metadata"]["attempt"]) == (run_id, 1)
