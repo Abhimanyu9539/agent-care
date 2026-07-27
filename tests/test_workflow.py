@@ -20,6 +20,7 @@ from app.agents.coordinator.schema import CoordinatorPlan
 from app.agents.routing.schema import RoutingVerdict
 from app.agents.safety.agent import safety_intake
 from app.graph.state import WorkflowContext
+from app.services import department as department_service
 from app.tools.routing import make_routing_tools
 
 
@@ -169,7 +170,9 @@ def test_staff_see_the_timeline_and_patients_do_not(app: FastAPI) -> None:
     assert step["output"]["safety"]["rule_id"] == "emergency.breathing"
     assert step["llm_meta"] is None  # a rule decided, so the LLM was not asked
     # The timeline stores counts, never the patient's words.
-    assert _rows(app, "SELECT input_summary FROM workflow_steps WHERE run_id = :id", run_id) == [({"text_chars": 15},)]
+    assert _rows(app, "SELECT input_summary FROM workflow_steps WHERE run_id = :id", run_id) == [
+        ({"text_chars": 15, "attempt": 1},)
+    ]
     assert staff.get("/api/staff/runs/999999999").status_code == 404
     assert patient.get(f"/api/staff/runs/{run_id}").status_code == 403
 
@@ -301,3 +304,79 @@ def test_when_the_routing_llm_fails_the_request_goes_to_staff(app: FastAPI, fake
         app, "SELECT outcome, llm_meta FROM workflow_steps WHERE run_id = :id AND node = 'route_request'", run["id"]
     )
     assert (outcome, llm_meta["error"]) == ("FAILED", "TimeoutError")
+
+
+# Failures and retry
+
+
+def test_an_unexpected_error_marks_the_request_failed_and_staff_can_retry_it(
+    app: FastAPI, fake_llm, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def database_gone(db):
+        raise RuntimeError("the database went away, with patient text in the message")
+
+    # Breaks the routing step outside its LLM call, which the agents do not handle themselves.
+    list_departments = department_service.list_departments
+    monkeypatch.setattr(department_service, "list_departments", database_gone)
+    patient = _sign_up(app)
+
+    run = _submit(patient, "Book a cardiology visit")
+
+    assert run["status"] == "FAILED"
+    [(error, attempt)] = _rows(app, "SELECT error, attempt FROM workflow_runs WHERE id = :id", run["id"])
+    # The error's type only: its text could hold patient data.
+    assert (error, attempt) == ({"code": "RuntimeError", "message": "Stopped unexpectedly after coordinator."}, 1)
+    events = _rows(
+        app, "SELECT metadata FROM audit_events WHERE workflow_run_id = :id AND action = 'workflow.status_change'", run["id"]
+    )
+    assert events == [({"from": "RUNNING", "to": "FAILED", "error": "RuntimeError"},)]
+
+    monkeypatch.setattr(department_service, "list_departments", list_departments)  # the database is back
+    fake_llm.route = RoutingVerdict(department="cardiology", visit_type="NEW", confidence=0.9, reason="Back up.")
+    staff = _sign_up(app, "STAFF")
+
+    response = staff.post(f"/api/staff/runs/{run['id']}/retry")
+
+    assert (response.status_code, response.json()) == (202, {"attempt": 2})
+    assert patient.get(f"/api/patient/requests/{run['id']}").json()["status"] == "COMPLETED"
+    steps = staff.get(f"/api/staff/runs/{run['id']}").json()["steps"]
+    # The first attempt's steps stay as history; the retry's steps follow them, from the start.
+    assert [(s["seq"], s["node"], s["attempt"]) for s in steps] == [
+        (1, "safety_intake", 1), (2, "coordinator", 1),
+        (3, "safety_intake", 2), (4, "coordinator", 2), (5, "route_request", 2), (6, "coordinator", 2),
+    ]
+    retried = _rows(app, "SELECT metadata FROM audit_events WHERE workflow_run_id = :id AND action = 'workflow.retry'", run["id"])
+    assert retried == [({"from": "FAILED", "attempt": 2},)]
+    # The requests list shows it once, decided by the latest attempt.
+    listed = [r for r in staff.get("/api/staff/runs").json() if r["id"] == run["id"]]
+    assert [(r["status"], r["routing"]["result"]) for r in listed] == [("COMPLETED", "ROUTED")]
+
+
+def test_a_stuck_request_can_be_retried(app: FastAPI, fake_llm) -> None:
+    patient = _sign_up(app)
+    run_id = _submit(patient, "Book a cardiology visit")["id"]
+    # As if the server restarted mid-run: still RUNNING, and no progress for 11 minutes.
+    with app.state.engine.begin() as connection:
+        connection.execute(
+            text("UPDATE workflow_runs SET status = 'RUNNING', updated_at = now() - interval '11 minutes' WHERE id = :id"),
+            {"id": run_id},
+        )
+    staff = _sign_up(app, "STAFF")
+
+    assert staff.get(f"/api/staff/runs/{run_id}").json()["run"]["stuck"] is True
+    assert patient.get(f"/api/patient/requests/{run_id}").json()["stuck"] is True
+
+    assert staff.post(f"/api/staff/runs/{run_id}/retry").status_code == 202
+    assert patient.get(f"/api/patient/requests/{run_id}").json()["status"] == "COMPLETED"
+
+
+def test_only_failed_or_stuck_requests_can_be_retried(app: FastAPI, fake_llm) -> None:
+    patient = _sign_up(app)
+    completed = _submit(patient, "Book a cardiology visit")["id"]
+    staff = _sign_up(app, "STAFF")
+
+    response = staff.post(f"/api/staff/runs/{completed}/retry")
+
+    assert (response.status_code, response.json()["detail"]) == (409, "Only a failed or stuck request can be retried.")
+    assert staff.post("/api/staff/runs/999999999/retry").status_code == 404
+    assert patient.post(f"/api/staff/runs/{completed}/retry").status_code == 403
