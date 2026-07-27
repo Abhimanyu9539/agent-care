@@ -100,6 +100,8 @@ The backend is a FastAPI JSON API under `/api/`. The frontend is a React app in 
 
 4. Open http://localhost:5173 and log in with a sample account, or register a new patient. Vite passes every `/api` request on to the backend on port 8000.
 
+To trace each run in LangSmith, set `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` in `.env` (see `.env.example`). Each attempt at a request is one trace named `workflow`, with the run id and attempt in its metadata. Traces hold the request text unmasked, so use them only with test data for now. Tests never send traces.
+
 To run it the way production does, build the frontend once with `npm run build` in `frontend/`. The backend then serves the built app itself at http://127.0.0.1:8000, so only uvicorn needs to run.
 
 ## Tests
